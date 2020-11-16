@@ -16,6 +16,16 @@ int main(int argc, char **argv)
 {
     //data type initialize
     //TODO:
+    /*
+     * Mat cameraMatrix = (Mat1d(3,3) << fx, 0, cx, fy, cy, 0, 0, 1);
+     * Mat distortionCoefficients = (Mat1d(1,4) << k1, k2, p1, p2);
+     * undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
+     */ 
+
+
+
+
+
 
     //Ros configuration_publisher
     ros::init(argc,argv, "RobotPositionPublisher");
