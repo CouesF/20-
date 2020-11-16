@@ -5,7 +5,7 @@ Function: Localize the robot from the beginning of map. output in ros
 Node Name: RobotPositionPublisher
 Create Topic: RobotPositionInfo
 ******************************************************/
-#include<opencv>//TODO:
+#include<opencv>//TODO:correct the format
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
