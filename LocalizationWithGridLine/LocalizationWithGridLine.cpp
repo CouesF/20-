@@ -5,7 +5,7 @@ Function: Localize the robot from the beginning of map. output in ros
 Node Name: RobotPositionPublisher
 Create Topic: RobotPositionInfo
 ******************************************************/
-#include<opencv>//TODO:correct the format
+#include"opencv2/opencv.hpp"//TODO:correct the format
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -21,6 +21,22 @@ int main(int argc, char **argv)
      * Mat distortionCoefficients = (Mat1d(1,4) << k1, k2, p1, p2);
      * undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
      */ 
+    cv::Mat image;
+    cv::VideoCapture cap;
+    
+
+    // cam initialization
+    cap.open(0);
+    if(!cap.isOpened()){
+        std::cout << "cam openning failed" << std::endl;
+	return -1;
+    }
+    
+    cap >> image;
+    if(image.empty())
+    {}
+    cv::imshow("test",image);
+    cv::waitKey(0);
 
 
 
@@ -43,11 +59,11 @@ int main(int argc, char **argv)
     
 
 
-    while (ros::ok())
-    {
+    //while (ros::ok())
+    //{
 
 
 
-    }
-
+    //}
+    return 0;
 }
