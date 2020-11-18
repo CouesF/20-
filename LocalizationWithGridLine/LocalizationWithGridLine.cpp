@@ -22,6 +22,7 @@ Create Topic: RobotPositionInfo
 #define imgHeightCut 240
 #define loopRate 30 // whole loop rate
 #define imgPartitionSize 60//(pixels) divide the img into areas. make sure each part has only one cross
+#define gaussianBlurSize 8 
 
 #define currentFrame 1
 #define previousFrame 0
@@ -30,6 +31,23 @@ Create Topic: RobotPositionInfo
 #define areaXCount imgWidth/imgPartitionSize+3
 #define areaYCount imgWidth/imgPartitionSize+3
 
+
+void drawLine(Vec2f line, Mat &img, Scalar rgb = CV_RGB(0,0,255))
+{
+    if(line[1]!=0)
+    {
+        float m = -1/tan(line[1]);
+
+        float c = line[0]/sin(line[1]);
+
+        cv::line(img, Point(0, c), Point(img.size().width, m*img.size().width+c), rgb);
+    }
+    else
+    {
+        cv::line(img, Point(line[0], 0), Point(line[0], img.size().height), rgb);
+    }
+
+}
 
 int main(int argc, char **argv)
 {
@@ -90,11 +108,25 @@ int main(int argc, char **argv)
     
 
 
-    //while (ros::ok())
-    //{
+    while (ros::ok())
+    {
+        cap>>img;
+        cv::cvtColor(img,img,cv::COLOR_RGB2GRAY);
 
+        imshow("gray",img);
+        GaussianBlur(img,img,size(gaussianBlurSize,gaussianBlurSize),0)
+        imshow("GaussialBlur",img);
+        bitwise_not(img, img);
+        imshow("bitwise",img);
+        vector<Vec2f> lines;
+        HoughLines(img, lines, 1, CV_PI/180, 200);
+        for(int i=0;i<lines.size();i++)
+        {
+            drawLine(lines[i], img, CV_RGB(0,0,128));
+        }
+        imshow("lines",img);
+        cv::waitKey(1);
 
-
-    //}
+    }
     return 0;
 }
