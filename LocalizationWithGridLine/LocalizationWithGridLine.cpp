@@ -8,6 +8,7 @@ Create Topic: RobotPositionInfo
 #include"opencv2/opencv.hpp"//TODO:correct the format
 #include"opencv2/highgui/highgui.hpp"
 //#include"opencv2/core/types.hpp"
+#include"opencv2/imgproc.hpp"//cvtColor
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -38,7 +39,8 @@ int main(int argc, char **argv)
      * Mat cameraMatrix = (Mat1d(3,3) << fx, 0, cx, fy, cy, 0, 0, 1);
      * Mat distortionCoefficients = (Mat1d(1,4) << k1, k2, p1, p2);
      */
-    cv::Mat image,greyImage;
+    cv::Mat img,grayImg;
+    
     cv::VideoCapture cap;
     
     //Localization data
@@ -49,27 +51,30 @@ int main(int argc, char **argv)
     int coord[2][areaXCount][areaYCount][2];
 
 
-    // cap setting
-    // cap.set(cv::CV_CAP_PROP_FRAME_WIDTH,imgWidth);
-    // cap.set(cv::CV_CAP_PROP_FRAME_HEIGHT,imgHeight);
-    // cap.set(cv::CV_CAP_PROP_EXPOSURE,-5);//-5 means 40ms
-    //
-
-    // cam initialization
+    // cap initialization and setting
     cap.open(0);
+    cap.set(cv::CAP_PROP_FRAME_WIDTH,imgWidth);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT,imgHeight);
+    
+
     if(!cap.isOpened()){ 
         std::cout << "cam openning failed" << std::endl;
 	return -1;
     }
-    
-    cap >> image;
-    
-    if(image.empty())
-    {}
-    
-    cv::cvtColor(image,greyImage,cv::COLOR_RGB2GREY);
+    system("v4l2-ctl -d /dev/video0 -c exposure_auto=1");
+    system("v4l2-ctl -d /dev/video0 -c exposure_absolute=78");//minimum is 78
+    std::cout<<"default exposure: "<<cap.get(cv::CAP_PROP_EXPOSURE)<<std::endl;
+    //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
+    //imshow("gray",grayImg);
+    if(img.empty()){}
     //undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
-    cv::imshow("test",image);
+    
+    
+
+
+
+
+
     cv::waitKey(0);
 
 
@@ -82,11 +87,6 @@ int main(int argc, char **argv)
         n.advertise<std_msgs::String>("RobotPositionInfo", 500);
     ros::Rate loop_rate (30);//max rate is 30 Hz. ImageProcess may slower than it.
 
-    //set camera parameter: 
-    //      1. black white
-    //      2. exposure time
-    //      3. image resolution
-    //TODO:
     
 
 
