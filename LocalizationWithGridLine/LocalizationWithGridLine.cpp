@@ -38,7 +38,7 @@ using namespace cv;
 float gaussianPara[pixelsCntPerCentimeter*3+2];
 void calculateGaussianPara()
 {
-    double para = 1/sqrt(2*cv::CV_PI);
+    double para = 1/sqrt(2*CV_PI);
     for(int i = 1;i <= pixelsCntPerCentimeter * 3;i++)
     {
         double gap = 4.0 / pixelsCntPerCentimeter / 3.0;
@@ -46,22 +46,6 @@ void calculateGaussianPara()
     }
 }
 
-void drawLine(Vec2f _line, Mat &img)
-{
-    if(_line[1]!=0)
-    {
-        float m = -1/tan(_line[1]);
-
-        float c = _line[0]/sin(_line[1]);
-
-        line(img, Point(0, c), Point(img.size().width, m*img.size().width+c),CV_RGB(0,0,255));
-    }
-    else
-    {
-        line(img, Point(_line[0], 0), Point(_line[0], img.size().height), CV_RGB(0,0,255));
-    }
-
-}
 
 void gaussianSum(Mat *gridLineFitting,int pixelPosition)
 {
@@ -72,7 +56,7 @@ void gaussianSum(Mat *gridLineFitting,int pixelPosition)
     {
         pixelTempPos = int(pixelPosition + i - pixelsCntPerCentimeter * 3.0 / 2.0 );
         if(pixelTempPos > maxLensInImg || pixelTempPos < 1) continue;
-        gridLineFitting[pixelTempPos][0] += double(gaussianPara[i] * 20.0);
+        ((float*)gridLineFitting->data)[pixelTempPos] += double(gaussianPara[i] * 20.0);
     }
 }
     
@@ -94,7 +78,6 @@ int main(int argc, char **argv)
         //int localizationData[2][areaXCount][areaYCount][2];
         //int coord[2][areaXCount][areaYCount][2];
     double xDirectionOfPreviousFrame = 0.0,yDirectionOfPreviousFrame = CV_PI/2;//theta in img.
-    std::vector<Vec2f>xLines;
     
 
     // cap initialization and setting
@@ -172,9 +155,10 @@ int main(int argc, char **argv)
 	
 
         //filter the parallel lines of x and y. then add them in to 1D mat using gaussing func
-        Mat xGridLinesFitting = Mat::zeros( sqrt(imgWidthCut^2+imgHeightCut^2),1,CV_32FC1);//to calculate the fitest grid lines
-        Mat yGridLinesFitting = Mat::zeros( sqrt(imgWidthCut^2+imgHeightCut^2),1,CV_32FC1);//to calculate the fitest grid lines
-	    for(int i = 0;i < lines.size(); i++)
+        Mat xGridLinesFitting = Mat::zeros( maxLensInImg + 5,1,CV_32F);//to calculate the fitest grid lines
+        Mat yGridLinesFitting = Mat::zeros( maxLensInImg + 5,1,CV_32F);//to calculate the fitest grid lines
+	    double xAverageDirection = 0,yAverageDirection = 0, xCountOfAverage = 0, yCountOfAverage = 0;
+        for(int i = 0;i < lines.size(); i++)
         {
 	        //std::cout<<"jjjj=\n";
 	        double rho = lines[i][0],theta = lines[i][1];
@@ -185,30 +169,65 @@ int main(int argc, char **argv)
 	        //filter of the parallel lines of x and y
 	        if(abs(theta - xDirectionOfPreviousFrame) < rotationThreshold)
 	        {
-                xLines.push_back(lines[i]);
                 gaussianSum(&xGridLinesFitting,rho);
+                xCountOfAverage++ ;
+                xAverageDirection += rho;
             }
             else if(abs(theta - yDirectionOfPreviousFrame) < rotationThreshold)
             {
-                yLines.push_back(lines[i]);
                 gaussianSum(&yGridLinesFitting,rho);
+                yCountOfAverage++;
+                yAverageDirection += rho;
             }
 
 
-	        pt1.x = cvRound(x0 + 1000*(-b));
-	        pt1.y = cvRound(y0 + 1000*(a));
-	        pt2.x = cvRound(x0 + 1000*(-b));
-	        pt2.y = cvRound(y0 + 1000*(a));
 	        pt1.x = x0;
 	        pt1.y = 0;	    
-                pt2.x = 0;
+            pt2.x = 0;
 	        pt2.y = y0;
-	        line(originImg,pt1,pt2,Scalar(0,0,255),3,LINE_AA);
+	       // line(originImg,pt1,pt2,Scalar(0,0,255),3,LINE_AA);
 	    
 	    }
+        xAverageDirection = xAverageDirection / double(xCountOfAverage);
+        yAverageDirection = yAverageDirection / double(yCountOfAverage);
+
         
 
-        //try to use parallel lines to fit the 1D Mat find the maximum rho //x and y parrellel process 
+        //trying to find the fitest grid by using traversal
+        int xRho,yRho,xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
+        for(int i = 1; i <= pixelsCntPerCentimeter * 29 ; i += 3)
+        {
+            int sumValue = 0;
+            for(int k = i; k <= maxLensInImg ; k+= pixelsCntPerCentimeter)
+            {
+                sumValue += ((float*)xGridLinesFitting.data)[k];
+            } 
+            if(sumValue > xMax) 
+            {
+                xMax = sumValue;
+                xRho = i;
+            }
+        }
+        for(int i = 1; i <= pixelsCntPerCentimeter * 29 ; i += 2)
+        {
+            int sumValue = 0;
+            for(int k = i; k <= maxLensInImg ; k+= pixelsCntPerCentimeter)
+            {
+                sumValue += ((float*)yGridLinesFitting.data)[k];
+            } 
+            if(sumValue > yMax) 
+            {
+                yMax = sumValue;
+                yRho = i;
+            }
+        }
+
+	    line(originImg,Point(1,10),Point(21,10),Scalar(0,0,255),2,LINE_AA);
+
+
+
+
+
 
         imshow("lines",originImg);
 
