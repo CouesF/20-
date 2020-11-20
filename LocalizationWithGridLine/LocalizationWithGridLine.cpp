@@ -34,6 +34,8 @@ Create Topic: RobotPositionInfo
 #define areaXCount imgWidth/imgPartitionSize+3
 #define areaYCount imgWidth/imgPartitionSize+3
 using namespace cv;
+Point2f perspectiveTransformInputPara[4] = {Point2f(160,0),Point2f(480,0),Point2f(0,320),Point2f(640,320)};
+Point2f perspectiveTransformOutputPara[4] = {Point2f(0,0),Point2f(320,0),Point2f(0,320),Point2f(320,320)};
 
 float gaussianPara[pixelsCntPerCentimeter*3+2];
 void calculateGaussianPara()
@@ -121,9 +123,22 @@ int main(int argc, char **argv)
     {
 	    
 	    //get the stream and cut the img
-	    Mat tempCompleteImg; 
+	    Mat tempCompleteImg,compelteWarpedImg; 
 	    cap >> tempCompleteImg;
-	    Rect rect(0,0,imgWidthCut,imgHeightCut);
+	    
+        //Transform perspective
+        Mat lambda(2,4,CV_32FC1);
+        lambda = Mat::zeros(tempCompleteImg.rows,tempCompleteImg.cols,tempCompleteImg.type());
+        lambda = getPerspectiveTransform(perspectiveTransformInputPara,perspectiveTransformOutputPara);
+        warpPerspective(tempCompleteImg,competeWarpedImg,lambda,completeWarpedImg.size());
+
+        imshow("warpedImg",completeWarpedImg);
+        
+        
+        Rect rect(0,0,imgWidthCut,imgHeightCut);
+        
+
+
 	    originImg = tempCompleteImg(rect);
 
 
