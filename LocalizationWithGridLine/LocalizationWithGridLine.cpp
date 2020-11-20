@@ -34,8 +34,11 @@ Create Topic: RobotPositionInfo
 #define areaXCount imgWidth/imgPartitionSize+3
 #define areaYCount imgWidth/imgPartitionSize+3
 using namespace cv;
-Point2f perspectiveTransformInputPara[4] = {Point2f(160,0),Point2f(480,0),Point2f(0,320),Point2f(640,320)};
-Point2f perspectiveTransformOutputPara[4] = {Point2f(0,0),Point2f(320,0),Point2f(0,320),Point2f(320,320)};
+
+//TODO IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
+
+Point2f perspectiveTransformOriginPoint[4] = {Point2f(155,0),Point2f(485,0),Point2f(0,320),Point2f(640,320)};
+Point2f perspectiveTransformWarpedPointa[4] = {Point2f(0,0),Point2f(382,0),Point2f(0,315),Point2f(382,315)};
 
 float gaussianPara[pixelsCntPerCentimeter*3+2];
 void calculateGaussianPara()
@@ -123,15 +126,14 @@ int main(int argc, char **argv)
     {
 	    
 	    //get the stream and cut the img
-	    Mat tempCompleteImg,compelteWarpedImg; 
+	    Mat tempCompleteImg,completeWarpedImg; 
 	    cap >> tempCompleteImg;
 	    
         //Transform perspective
-        Mat lambda(2,4,CV_32FC1);
-        lambda = Mat::zeros(tempCompleteImg.rows,tempCompleteImg.cols,tempCompleteImg.type());
-        lambda = getPerspectiveTransform(perspectiveTransformInputPara,perspectiveTransformOutputPara);
-        warpPerspective(tempCompleteImg,competeWarpedImg,lambda,completeWarpedImg.size());
+        Mat lambda = getPerspectiveTransform(perspectiveTransformOriginPoint,perspectiveTransformWarpedPointa);
+        warpPerspective(tempCompleteImg,completeWarpedImg,lambda, Size(320,300),INTER_LINEAR);
 
+	    line(completeWarpedImg,Point(30,30),Point(130,30),Scalar(0,0,255),2,LINE_AA);
         imshow("warpedImg",completeWarpedImg);
         
         
