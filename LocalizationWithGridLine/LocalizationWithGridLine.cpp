@@ -16,6 +16,7 @@ Create Topic: RobotPositionInfo
 #include <sstream>
 #include <stdbool.h>
 #include <vector>
+#include <math.h>
 
 #define imgWidth 640
 #define imgHeight 360
@@ -24,15 +25,27 @@ Create Topic: RobotPositionInfo
 #define loopRate 30 // whole loop rate
 #define imgPartitionSize 60//(pixels) divide the img into areas. make sure each part has only one cross
 #define gaussianBlurSize 11
-#define pixelsCntPerCentimeter 15
-#define houghLineThreshold pixelsCntPerCentimeter*7
-
+#define pixelsCntPerCentimeter 15//TODO
+#define houghLineThreshold pixelsCntPerCentimeter*4
+#define rotationThreshold (double)(25.0/180.0*CV_PI)
+#define maxLensInImg (double)sqrt(pow(imgWidthCut,2)+pow(imgHeightCut,2)) + 4.0
 #define currentFrame 1
 #define previousFrame 0
 #define areaXCount imgWidth/imgPartitionSize+3
 #define areaYCount imgWidth/imgPartitionSize+3
-
 using namespace cv;
+
+float gaussianPara[pixelsCntPerCentimeter*3+2];
+void calculateGaussianPara()
+{
+    double para = 1/sqrt(2*cv::CV_PI);
+    for(int i = 1;i <= pixelsCntPerCentimeter * 3;i++)
+    {
+        double gap = 4.0 / pixelsCntPerCentimeter / 3.0;
+        gaussianPara[i] = para * exp(-pow((double)(-2+(double)i*gap),2)/2.0);
+    }
+}
+
 void drawLine(Vec2f _line, Mat &img)
 {
     if(_line[1]!=0)
@@ -50,28 +63,39 @@ void drawLine(Vec2f _line, Mat &img)
 
 }
 
+void gaussianSum(Mat *gridLineFitting,int pixelPosition)
+{
+
+    int cnt = 1;
+    int pixelTempPos;
+    for(int i = 1;i <= pixelsCntPerCentimeter * 3 ;i++)
+    {
+        pixelTempPos = int(pixelPosition + i - pixelsCntPerCentimeter * 3.0 / 2.0 );
+        if(pixelTempPos > maxLensInImg || pixelTempPos < 1) continue;
+        gridLineFitting[pixelTempPos][0] += double(gaussianPara[i] * 20.0);
+    }
+}
+    
+
 int main(int argc, char **argv)
 {
     //data type initialize
-    //TODO:
-    /*
-     * Mat cameraMatrix = (Mat1d(3,3) << fx, 0, cx, fy, cy, 0, 0, 1);
-     * Mat distortionCoefficients = (Mat1d(1,4) << k1, k2, p1, p2);
-     */
+        //TODO:Mat cameraMatrix = (Mat1d(3,3) << fx, 0, cx, fy, cy, 0, 0, 1);
+        //Mat distortionCoefficients = (Mat1d(1,4) << k1, k2, p1, p2);
     Mat img,originImg;
     short thresholdCnt = 151 ;//used for estimating the threshold value of canny edge detection. to save the resources of calculating while looping
     int cannyMinThreshold,cannyMaxThreshold;
     VideoCapture cap;
-
     
     //Localization data
-    //    The first parameter represents the frame order. 0-previous 1-current
-    //    The last parameter represents x or y values
-    bool isCrossExists[2][areaXCount][areaYCount];
-    int localizationData[2][areaXCount][areaYCount][2];
-    int coord[2][areaXCount][areaYCount][2];
-
-
+        //    The first parameter represents the frame order. 0-previous 1-current
+        //    The last parameter represents x or y values
+        //bool isCrossExists[2][areaXCount][areaYCount];
+        //int localizationData[2][areaXCount][areaYCount][2];
+        //int coord[2][areaXCount][areaYCount][2];
+    double xDirectionOfPreviousFrame = 0.0,yDirectionOfPreviousFrame = CV_PI/2;//theta in img.
+    std::vector<Vec2f>xLines;
+    
 
     // cap initialization and setting
     cap.open(0);
@@ -93,6 +117,7 @@ int main(int argc, char **argv)
     if(img.empty()){}
     //undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
     
+    calculateGaussianPara();    
    
 
 
@@ -112,59 +137,82 @@ int main(int argc, char **argv)
     while (ros::ok())
     {
 	    
-	//get the stream and cut the img
-	Mat tempCompleteImg; 
-	cap >> tempCompleteImg;
-	Rect rect(0,0,imgWidthCut,imgHeightCut);
-	originImg = tempCompleteImg(rect);
+	    //get the stream and cut the img
+	    Mat tempCompleteImg; 
+	    cap >> tempCompleteImg;
+	    Rect rect(0,0,imgWidthCut,imgHeightCut);
+	    originImg = tempCompleteImg(rect);
 
 
         cvtColor(originImg,img,COLOR_RGB2GRAY);
 
 	
 	
-	//calculate the canny threshold automatically
-	thresholdCnt++;
+	    //calculate the canny threshold automatically
+	    thresholdCnt++;
         if(thresholdCnt > 150)//every 150 times loop finished, recalculate the threshold
-	{
+	    {
             thresholdCnt = 0;
             //meanStdDev(img,meanValueOfImg,stdDev);
             //double avg = meanValueOfImg.ptr<double>(0)[0];
-	    Mat mThres_Gray;
+	        Mat mThres_Gray;
             cannyMaxThreshold = min(200,(int)(threshold(img,mThres_Gray,0,255,THRESH_OTSU)));
             cannyMinThreshold = max(70,(int)(0.3*cannyMaxThreshold));
-	}
+	    }
 
 
-	//Img pre-processing and line detection
-	GaussianBlur(img,img,Size(gaussianBlurSize,gaussianBlurSize),0);
+	    //Img pre-processing and line detection
+	    GaussianBlur(img,img,Size(gaussianBlurSize,gaussianBlurSize),0);
         imshow("GaussialBlur",img);
         Canny(img,img,cannyMinThreshold,cannyMaxThreshold,3);
         imshow("canny",img);
-	std::vector<Vec2f>lines;
-	HoughLines(img,lines,3,CV_PI/180,houghLineThreshold,0,0);
+	    std::vector<Vec2f>lines;
+	    HoughLines(img,lines,5,CV_PI/180,houghLineThreshold,0,0);
 	
 	
-	for(int i = 0;i < lines.size(); i++)
+
+        //filter the parallel lines of x and y. then add them in to 1D mat using gaussing func
+        Mat xGridLinesFitting = Mat::zeros( sqrt(imgWidthCut^2+imgHeightCut^2),1,CV_32FC1);//to calculate the fitest grid lines
+        Mat yGridLinesFitting = Mat::zeros( sqrt(imgWidthCut^2+imgHeightCut^2),1,CV_32FC1);//to calculate the fitest grid lines
+	    for(int i = 0;i < lines.size(); i++)
         {
-	    //std::cout<<"jjjj=\n";
-	    double rho = lines[i][0],theta = lines[i][1];
-	    Point pt1,pt2;
-	    double a = cos(theta),b = sin(theta);
-	    double x0 = rho/a,y0 = rho/b;
-	    pt1.x = cvRound(x0 + 1000*(-b));
-	    pt1.y = cvRound(y0 + 1000*(a));
-	    pt2.x = cvRound(x0 + 1000*(-b));
-	    pt2.y = cvRound(y0 + 1000*(a));
-	    pt1.x = x0;
-	    pt1.y = 0;	    
-            pt2.x = 0;
-	    pt2.y = y0;
-	    line(originImg,pt1,pt2,Scalar(0,0,255),3,LINE_AA);
-	}
+	        //std::cout<<"jjjj=\n";
+	        double rho = lines[i][0],theta = lines[i][1];
+	        Point pt1,pt2;
+	        double a = cos(theta),b = sin(theta);
+	        double x0 = rho/a,y0 = rho/b;
+	        
+	        //filter of the parallel lines of x and y
+	        if(abs(theta - xDirectionOfPreviousFrame) < rotationThreshold)
+	        {
+                xLines.push_back(lines[i]);
+                gaussianSum(&xGridLinesFitting,rho);
+            }
+            else if(abs(theta - yDirectionOfPreviousFrame) < rotationThreshold)
+            {
+                yLines.push_back(lines[i]);
+                gaussianSum(&yGridLinesFitting,rho);
+            }
+
+
+	        pt1.x = cvRound(x0 + 1000*(-b));
+	        pt1.y = cvRound(y0 + 1000*(a));
+	        pt2.x = cvRound(x0 + 1000*(-b));
+	        pt2.y = cvRound(y0 + 1000*(a));
+	        pt1.x = x0;
+	        pt1.y = 0;	    
+                pt2.x = 0;
+	        pt2.y = y0;
+	        line(originImg,pt1,pt2,Scalar(0,0,255),3,LINE_AA);
+	    
+	    }
+        
+
+        //try to use parallel lines to fit the 1D Mat find the maximum rho //x and y parrellel process 
+
         imshow("lines",originImg);
 
-	waitKey(15);
+	    waitKey(15);
 
     
     }
