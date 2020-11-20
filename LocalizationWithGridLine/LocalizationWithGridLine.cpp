@@ -22,13 +22,15 @@ Create Topic: RobotPositionInfo
 #define imgHeight 360
 #define imgWidthCut 640
 #define imgHeightCut 210
+#define warpedWidth 382
+#define warpedHeight 315
 #define loopRate 30 // whole loop rate
 #define imgPartitionSize 60//(pixels) divide the img into areas. make sure each part has only one cross
 #define gaussianBlurSize 11
-#define pixelsCntPerCentimeter 15//TODO
-#define houghLineThreshold pixelsCntPerCentimeter*4
+#define pixelsCntPerCentimeter 3.33//TODO: 100p = 30cm
+#define houghLineThreshold pixelsCntPerCentimeter*4.0
 #define rotationThreshold (double)(25.0/180.0*CV_PI)
-#define maxLensInImg (double)sqrt(pow(imgWidthCut,2)+pow(imgHeightCut,2)) + 4.0
+#define maxLensInImg (double)(sqrt(pow(warpedWidth,2)+pow(warpedHeight,2)) + 4.0)
 #define currentFrame 1
 #define previousFrame 0
 #define areaXCount imgWidth/imgPartitionSize+3
@@ -38,9 +40,9 @@ using namespace cv;
 //TODO IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
 
 Point2f perspectiveTransformOriginPoint[4] = {Point2f(155,0),Point2f(485,0),Point2f(0,320),Point2f(640,320)};
-Point2f perspectiveTransformWarpedPointa[4] = {Point2f(0,0),Point2f(382,0),Point2f(0,315),Point2f(382,315)};
+Point2f perspectiveTransformWarpedPointa[4] = {Point2f(0,0),Point2f(warpedWidth,0),Point2f(0,warpedHeight),Point2f(warpedWidth,warpedHeight)};
 
-float gaussianPara[pixelsCntPerCentimeter*3+2];
+float gaussianPara[int(pixelsCntPerCentimeter*3+2)];
 void calculateGaussianPara()
 {
     double para = 1/sqrt(2*CV_PI);
@@ -72,6 +74,8 @@ int main(int argc, char **argv)
         //TODO:Mat cameraMatrix = (Mat1d(3,3) << fx, 0, cx, fy, cy, 0, 0, 1);
         //Mat distortionCoefficients = (Mat1d(1,4) << k1, k2, p1, p2);
     Mat img,originImg;
+    Mat warpedImg,warpedGrayImg;
+
     short thresholdCnt = 151 ;//used for estimating the threshold value of canny edge detection. to save the resources of calculating while looping
     int cannyMinThreshold,cannyMaxThreshold;
     VideoCapture cap;
@@ -105,7 +109,7 @@ int main(int argc, char **argv)
     if(img.empty()){}
     //undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
     
-    calculateGaussianPara();    
+    calculateGaussianPara();
    
 
 
@@ -124,27 +128,22 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-	    
 	    //get the stream and cut the img
-	    Mat tempCompleteImg,completeWarpedImg; 
-	    cap >> tempCompleteImg;
+	    cap >> originImg;
 	    
         //Transform perspective
         Mat lambda = getPerspectiveTransform(perspectiveTransformOriginPoint,perspectiveTransformWarpedPointa);
-        warpPerspective(tempCompleteImg,completeWarpedImg,lambda, Size(320,300),INTER_LINEAR);
+        warpPerspective(originImg,warpedImg,lambda, Size(320,300),INTER_LINEAR);
 
-	    line(completeWarpedImg,Point(30,30),Point(130,30),Scalar(0,0,255),2,LINE_AA);
-        imshow("warpedImg",completeWarpedImg);
+	    line(warpedImg,Point(30,30),Point(130,30),Scalar(0,0,255),2,LINE_AA);
+        imshow("warpedImg",warpedImg);
         
         
-        Rect rect(0,0,imgWidthCut,imgHeightCut);
-        
+        //Rect rect(0,0,imgWidthCut,imgHeightCut);
+	    //originImg = tempCompleteImg(rect);
 
 
-	    originImg = tempCompleteImg(rect);
-
-
-        cvtColor(originImg,img,COLOR_RGB2GRAY);
+        cvtColor(warpedImg,warpedGrayImg,COLOR_RGB2GRAY);
 
 	
 	
@@ -156,18 +155,18 @@ int main(int argc, char **argv)
             //meanStdDev(img,meanValueOfImg,stdDev);
             //double avg = meanValueOfImg.ptr<double>(0)[0];
 	        Mat mThres_Gray;
-            cannyMaxThreshold = min(200,(int)(threshold(img,mThres_Gray,0,255,THRESH_OTSU)));
+            cannyMaxThreshold = min(200,(int)(threshold(warpedGrayImg,mThres_Gray,0,255,THRESH_OTSU)));
             cannyMinThreshold = max(70,(int)(0.3*cannyMaxThreshold));
 	    }
 
 
 	    //Img pre-processing and line detection
-	    GaussianBlur(img,img,Size(gaussianBlurSize,gaussianBlurSize),0);
-        imshow("GaussialBlur",img);
-        Canny(img,img,cannyMinThreshold,cannyMaxThreshold,3);
-        imshow("canny",img);
+	    GaussianBlur(warpedGrayImg,warpedGrayImg,Size(gaussianBlurSize,gaussianBlurSize),0);
+        imshow("GaussialBlur",warpedGrayImg);
+        Canny(warpedGrayImg,warpedGrayImg,cannyMinThreshold,cannyMaxThreshold,3);
+        imshow("canny",warpedGrayImg);
 	    std::vector<Vec2f>lines;
-	    HoughLines(img,lines,5,CV_PI/180,houghLineThreshold,0,0);
+	    HoughLines(warpedGrayImg,lines,5,CV_PI/180,houghLineThreshold,0,0);
 	
 	
 
@@ -202,20 +201,20 @@ int main(int argc, char **argv)
 	        pt1.y = 0;	    
             pt2.x = 0;
 	        pt2.y = y0;
-	       // line(originImg,pt1,pt2,Scalar(0,0,255),3,LINE_AA);
+	        //line(originImg,pt1,pt2,Scalar(0,0,255),3,LINE_AA);
 	    
 	    }
         xAverageDirection = xAverageDirection / double(xCountOfAverage);
         yAverageDirection = yAverageDirection / double(yCountOfAverage);
-
-        
+        xDirectionOfPreviousFrame = xAverageDirection;
+        yDirectionOfPreviousFrame = yAverageDirection;
 
         //trying to find the fitest grid by using traversal
         int xRho,yRho,xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
-        for(int i = 1; i <= pixelsCntPerCentimeter * 29 ; i += 3)
+        for(int i = 1; i <= pixelsCntPerCentimeter * 29 ; i += 2)
         {
             int sumValue = 0;
-            for(int k = i; k <= maxLensInImg ; k+= pixelsCntPerCentimeter)
+            for(int k = i; k <= maxLensInImg ; k+= 100)//100 pixels = 30cm = 1 square
             {
                 sumValue += ((float*)xGridLinesFitting.data)[k];
             } 
@@ -228,7 +227,7 @@ int main(int argc, char **argv)
         for(int i = 1; i <= pixelsCntPerCentimeter * 29 ; i += 2)
         {
             int sumValue = 0;
-            for(int k = i; k <= maxLensInImg ; k+= pixelsCntPerCentimeter)
+            for(int k = i; k <= maxLensInImg ; k+= 100)
             {
                 sumValue += ((float*)yGridLinesFitting.data)[k];
             } 
@@ -239,16 +238,68 @@ int main(int argc, char **argv)
             }
         }
 
-	    line(originImg,Point(1,10),Point(21,10),Scalar(0,0,255),2,LINE_AA);
+        //draw grid lines
+
+        {
+            int distance[4] = {0, 100, 200, 300};
+            if(xTheta > CV_PI / 2.0)
+            {
+                double tempTheta = CV_PI - xTheta;
+                for(int i = 0; i < 4; i++)
+                {
+                    int rho = xRho + distance[i];
+                    line(warpedImg,
+                        Point(warpedWidth - rho / cos(tempTheta),0),
+                        Point(warpedWidth, rho / sin(tempTheta)),
+                        Scalar(0,0,255),2,LINE_AA);
+                }
+            }
+            else
+            {
+                double tempTheta = xTheta;
+                for(int i = 0; i < 4; i++)
+                {
+                    int rho = xRho + distance[i];
+                    line(warpedImg,
+                        Point(rho / cos(tempTheta),0),
+                        Point(0, rho / sin(tempTheta)),
+                        Scalar(0,0,255),2,LINE_AA);
+                }
+            }
+            if(yTheta > CV_PI / 2.0)
+            {
+                double tempTheta = CV_PI - yTheta;
+                for(int i = 0; i < 4; i++)
+                {
+                    int rho = yRho + distance[i];
+                    line(warpedImg,
+                        Point(warpedWidth - rho / cos(tempTheta),0),
+                        Point(warpedWidth, rho / sin(tempTheta)),
+                        Scalar(0,0,255),2,LINE_AA);
+                }
+            }
+             else
+            {
+                double tempTheta = yTheta;
+                for(int i = 0; i < 4; i++)
+                {
+                    int rho = yRho + distance[i];
+                    line(warpedImg,
+                        Point(rho / cos(tempTheta),0),
+                        Point(0, rho / sin(tempTheta)),
+                        Scalar(0,0,255),2,LINE_AA);
+                }
+            }
+        }
+        
 
 
 
 
 
+        imshow("gridLines",wrapedImg);
 
-        imshow("lines",originImg);
-
-	    waitKey(15);
+	    waitKey(1);
 
     
     }
