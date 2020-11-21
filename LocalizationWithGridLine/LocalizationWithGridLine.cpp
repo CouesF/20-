@@ -43,8 +43,8 @@ using namespace cv;
 
 Point2f perspectiveTransformOriginPoint[4] = {Point2f(155,0),Point2f(485,0),Point2f(0,320),Point2f(640,320)};
 Point2f perspectiveTransformWarpedPointa[4] = {Point2f(0,0),Point2f(warpedWidth,0),Point2f(0,warpedHeight),Point2f(warpedWidth,warpedHeight)};
-int xGridLinesFitting[maxLensInImg *2 + 20];
-int yGridLinesFitting[maxLensInImg *2 + 20];
+int xGridLinesFitting[int(maxLensInImg *2 + 20)];
+int yGridLinesFitting[int(maxLensInImg *2 + 20)];
 float gaussianPara[int(pixelsCntPerCentimeter*3+2)];
 void calculateGaussianPara()
 {
@@ -59,7 +59,7 @@ void calculateGaussianPara()
 
 void gaussianSum(int pixelPosition,int k)// TODO:rewrite using array
 {
-    pixelPositioin += maxLensInImg;
+    pixelPosition += maxLensInImg;
     int pixelTempPos;
     for(int i = 1;i <= pixelsCntPerCentimeter * 3 ;i++)
     {
@@ -137,8 +137,11 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-	    //get the stream and cut the img
-	    cap >> originImg;
+	    //get the stream and cut the im
+        for(int i = 1;i <= 2;i++)
+            cap.grab();
+        //while(cap.grab()){}
+        cap >> originImg;
 	    
         //Transform perspective
         Mat lambda = getPerspectiveTransform(perspectiveTransformOriginPoint,perspectiveTransformWarpedPointa);
@@ -256,9 +259,9 @@ int main(int argc, char **argv)
             for(int k = i; k <= maxLensInImg ; k+= 100)//100 pixels = 30cm = 1 square
             {
                 xSumValue += xGridLinesFitting[k];
-                xSumValue += xGridLinesFitting[2*maxLensInImg - k];
+                xSumValue += xGridLinesFitting[int(2*maxLensInImg - k)];
                 ySumValue += yGridLinesFitting[k];
-                ySumValue += yGridLinesFitting[2*maxLensInImg - k];
+                ySumValue += yGridLinesFitting[int(2*maxLensInImg - k)];
             } 
             if(xSumValue > xMax) 
             {
@@ -355,8 +358,8 @@ int main(int argc, char **argv)
 
 	    waitKey(10);
 
+    outfile.close();
     
     }
-    outfile.close();
     return 0;
 }
