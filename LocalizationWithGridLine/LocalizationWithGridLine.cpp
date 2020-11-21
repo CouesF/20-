@@ -5,7 +5,7 @@ Function: Localize the robot from the beginning of map. output in ros
 Node Name: RobotPositionPublisher
 Create Topic: RobotPositionInfo
 ******************************************************/
-#include"opencv2/opencv.hpp"//TODO:correct the format
+#include"opencv2/opencv.hpp"
 #include"opencv2/highgui/highgui.hpp"
 //#include"opencv2/core/types.hpp"
 #include"opencv2/imgproc.hpp"//cvtColor
@@ -28,7 +28,7 @@ Create Topic: RobotPositionInfo
 #define loopRate 30 // whole loop rate
 #define imgPartitionSize 60//(pixels) divide the img into areas. make sure each part has only one cross
 #define gaussianBlurSize 11
-#define pixelsCntPerCentimeter 3.33//TODO: 100p = 30cm
+#define pixelsCntPerCentimeter 3.33//DONE: 100p = 30cm
 #define houghLineThreshold pixelsCntPerCentimeter*20.0
 #define rotationThreshold (double)(25.0/180.0*CV_PI)
 #define maxLensInImg (double)(sqrt(pow(warpedWidth,2)+pow(warpedHeight,2)) + 4.0)
@@ -55,7 +55,7 @@ void calculateGaussianPara()
 }
 
 
-void gaussianSum(Mat *gridLineFitting,int pixelPosition)
+void gaussianSum(Mat *gridLineFitting,int pixelPosition)// TODO:rewrite using array
 {
 
     int cnt = 1;
@@ -203,33 +203,41 @@ int main(int argc, char **argv)
 
 
 	        //filter of the parallel lines of x and y
-	        //TODO: direction changed from pi to 0
-            if(abs(theta - xDirectionOfPreviousFrame) < rotationThreshold)
+	        //DONE: direction changed from pi to 0
+            if(abs(sin(theta - xDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
 	        {
+                if((xDirectionOfPreviousFrame < rotationThreshold || xDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
+                {
+                    theta -= CV_PI;
+                }
+
                 gaussianSum(&xGridLinesFitting,rho);
                 xCountOfAverage++ ;
-                xAverageDirection += rho;
+                xAverageDirection += theta;
             }
-            else if(abs(theta - yDirectionOfPreviousFrame) < rotationThreshold)
-            {
-                gaussianSum(&yGridLinesFitting,rho);
-                yCountOfAverage++;
-                yAverageDirection += rho;
+            else if(abs(sin(theta - yDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
+	        {
+                if((yDirectionOfPreviousFrame < rotationThreshold || yDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
+                {
+                    theta -= CV_PI;
+                }
+
+                gaussianSum(&xGridLinesFitting,rho);
+                xCountOfAverage++ ;
+                xAverageDirection += theta;
             }
 
 	        line(warpedImg,pt1,pt2,Scalar(0,0,255),2,LINE_AA);
             
-            outfile << "rho: "<< rho << " Theta: " << theta << std::endl;
+            
 	    
         }
 
-        outfile.close();
-
-
-
-
+        
         imshow("hough lines",warpedImg);
-        xAverageDirection = xAverageDirection / double(xCountOfAverage);
+
+        outfile << "xDir: "<< xDirectionOfPreviousFrame << " yDir: " << yDirectionOfPreviousFrame << std::endl;
+        xAverageDirection = xAverageDirection / double(xCountOfAverage);// from -15 deg to 170 deg (using radian)
         yAverageDirection = yAverageDirection / double(yCountOfAverage);
         xDirectionOfPreviousFrame = xAverageDirection;
         yDirectionOfPreviousFrame = yAverageDirection;
@@ -328,5 +336,6 @@ int main(int argc, char **argv)
 
     
     }
+    outfile.close();
     return 0;
 }
