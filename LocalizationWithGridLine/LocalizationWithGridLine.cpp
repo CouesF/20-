@@ -37,6 +37,8 @@ Create Topic: RobotPositionInfo
 #define previousFrame 0
 #define areaXCount imgWidth/imgPartitionSize+3
 #define areaYCount imgWidth/imgPartitionSize+3
+#define gaussianSumMax 800//used for debug draw on canvas
+
 using namespace cv;
 
 //TODO IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
@@ -96,7 +98,6 @@ int main(int argc, char **argv)
         //int localizationData[2][areaXCount][areaYCount][2];
         //int coord[2][areaXCount][areaYCount][2];
     double xDirectionOfPreviousFrame = 0.0,yDirectionOfPreviousFrame = CV_PI/2;//theta in img.
-    
 
     // cap initialization and setting
     cap.open(0);
@@ -278,23 +279,41 @@ int main(int argc, char **argv)
 
         //draw grid lines
 
-            Point pt1, pt2;
-            double a,b,x0,y0;
-            a = cos(xAverageDirection), b = sin(xAverageDirection);
-            x0 = a*xRho, y0 = b*xRho;
-            pt1.x = cvRound(x0 + 1000*(-b));
-            pt1.y = cvRound(y0 + 1000*(a));
-            pt2.x = cvRound(x0 - 1000*(-b));
-            pt2.y = cvRound(y0 - 1000*(a));
-            line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
-            
-            a = cos(yAverageDirection), b = sin(yAverageDirection);
-            x0 = a*yRho, y0 = b*yRho;
-            pt1.x = cvRound(x0 + 1000*(-b));
-            pt1.y = cvRound(y0 + 1000*(a));
-            pt2.x = cvRound(x0 - 1000*(-b));
-            pt2.y = cvRound(y0 - 1000*(a));
-            line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
+        Point pt1, pt2;
+        double a,b,x0,y0;
+        a = cos(xAverageDirection), b = sin(xAverageDirection);
+        x0 = a*xRho, y0 = b*xRho;
+        pt1.x = cvRound(x0 + 1000*(-b));
+        pt1.y = cvRound(y0 + 1000*(a));
+        pt2.x = cvRound(x0 - 1000*(-b));
+        pt2.y = cvRound(y0 - 1000*(a));
+        line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
+        
+        a = cos(yAverageDirection), b = sin(yAverageDirection);
+        x0 = a*yRho, y0 = b*yRho;
+        pt1.x = cvRound(x0 + 1000*(-b));
+        pt1.y = cvRound(y0 + 1000*(a));
+        pt2.x = cvRound(x0 - 1000*(-b));
+        pt2.y = cvRound(y0 - 1000*(a));
+        line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
+
+
+
+
+
+        //draw debug data of gaussion sum 
+
+        Mat xCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
+        Mat yCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
+        line(xCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax));//y axis
+        line(yCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax));//y axis
+        for(int i = 0;i<maxLensInImg *2 + 20;i++)
+        {
+            line(xCanvas,Point(i,0),Point(i,xGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
+            line(yCanvas,Point(i,0),Point(i,yGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
+        }
+        imshow("xxx",xCanvas);
+        imshow("yyy",yCanvas);
 
             // int distance[4] = {0, 100, 200, 300};
             // if(xAverageDirection > CV_PI / 2.0)
