@@ -18,6 +18,7 @@ Create Topic: RobotPositionInfo
 #include <vector>
 #include <math.h>
 #include <fstream> //for debug. output to a file
+#include <string.h> // memset
 
 #define imgWidth 640
 #define imgHeight 360
@@ -42,29 +43,36 @@ using namespace cv;
 
 Point2f perspectiveTransformOriginPoint[4] = {Point2f(155,0),Point2f(485,0),Point2f(0,320),Point2f(640,320)};
 Point2f perspectiveTransformWarpedPointa[4] = {Point2f(0,0),Point2f(warpedWidth,0),Point2f(0,warpedHeight),Point2f(warpedWidth,warpedHeight)};
-
+int xGridLinesFitting[maxLensInImg *2 + 20];
+int yGridLinesFitting[maxLensInImg *2 + 20];
 float gaussianPara[int(pixelsCntPerCentimeter*3+2)];
 void calculateGaussianPara()
 {
-    double para = 1/sqrt(2*CV_PI);
+    double para = 1.0/sqrt(2.0*CV_PI);
+    double gap = 4.0 / pixelsCntPerCentimeter / 3.0;
     for(int i = 1;i <= pixelsCntPerCentimeter * 3;i++)
     {
-        double gap = 4.0 / pixelsCntPerCentimeter / 3.0;
-        gaussianPara[i] = para * exp(-pow((double)(-2+(double)i*gap),2)/2.0);
+        gaussianPara[i] = para * exp(-pow((double)(-2+(double)i*gap),2)/2.0)*2000.0;
     }
 }
 
 
-void gaussianSum(Mat *gridLineFitting,int pixelPosition)// TODO:rewrite using array
+void gaussianSum(int pixelPosition,int k)// TODO:rewrite using array
 {
-
-    int cnt = 1;
+    pixelPositioin += maxLensInImg;
     int pixelTempPos;
     for(int i = 1;i <= pixelsCntPerCentimeter * 3 ;i++)
     {
         pixelTempPos = int(pixelPosition + i - pixelsCntPerCentimeter * 3.0 / 2.0 );
-        if(pixelTempPos > maxLensInImg || pixelTempPos < 1) continue;
-        ((float*)gridLineFitting->data)[pixelTempPos] += double(gaussianPara[i] * 20.0);
+        //if(pixelTempPos > maxLensInImg || pixelTempPos < 1) continue;
+        if(k == 0)
+        {
+            xGridLinesFitting[pixelTempPos] += double(gaussianPara[i]);
+        }
+        if(k == 1)
+        {
+            yGridLinesFitting[pixelTempPos] += double(gaussianPara[i]);
+        }
     }
 }
     
@@ -172,9 +180,11 @@ int main(int argc, char **argv)
 	
 
         //filter the parallel lines of x and y. then add them in to 1D mat using gaussing func
-        Mat xGridLinesFitting = Mat::zeros( maxLensInImg + 5,1,CV_32F);//to calculate the fitest grid lines
-        Mat yGridLinesFitting = Mat::zeros( maxLensInImg + 5,1,CV_32F);//to calculate the fitest grid lines
-	    double xAverageDirection = 0,yAverageDirection = 0, xCountOfAverage = 0, yCountOfAverage = 0;
+        // Mat xGridLinesFitting = Mat::zeros( maxLensInImg + 5,1,CV_32F);//to calculate the fitest grid lines
+        // Mat yGridLinesFitting = Mat::zeros( maxLensInImg + 5,1,CV_32F);//to calculate the fitest grid lines
+	    memset(xGridLinesFitting,0,sizeof(xGridLinesFitting));
+        memset(yGridLinesFitting,0,sizeof(yGridLinesFitting));
+        double xAverageDirection = 0,yAverageDirection = 0, xCountOfAverage = 0, yCountOfAverage = 0;
         
         
         std::cout<<lines.size()<<std::endl;
@@ -186,7 +196,7 @@ int main(int argc, char **argv)
 
 
 
-
+        
         for(int i = 0;i < lines.size(); i++)
         {
 	        float rho = lines[i][0], theta = lines[i][1];
@@ -210,9 +220,8 @@ int main(int argc, char **argv)
                 {
                     theta -= CV_PI;
                 }
-
-                gaussianSum(&xGridLinesFitting,rho);
-                xCountOfAverage++ ;
+                gaussianSum(rho,0);
+                xCountOfAverage++;
                 xAverageDirection += theta;
             }
             else if(abs(sin(theta - yDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
@@ -221,16 +230,13 @@ int main(int argc, char **argv)
                 {
                     theta -= CV_PI;
                 }
-
-                gaussianSum(&xGridLinesFitting,rho);
-                xCountOfAverage++ ;
-                xAverageDirection += theta;
+                gaussianSum(rho,1);
+                yCountOfAverage++;
+                yAverageDirection += theta;
             }
 
 	        line(warpedImg,pt1,pt2,Scalar(0,0,255),2,LINE_AA);
-            
-            
-	    
+
         }
 
         
@@ -239,96 +245,111 @@ int main(int argc, char **argv)
         outfile << "xDir: "<< xDirectionOfPreviousFrame << " yDir: " << yDirectionOfPreviousFrame << std::endl;
         xAverageDirection = xAverageDirection / double(xCountOfAverage);// from -15 deg to 170 deg (using radian)
         yAverageDirection = yAverageDirection / double(yCountOfAverage);
-        xDirectionOfPreviousFrame = xAverageDirection;
-        yDirectionOfPreviousFrame = yAverageDirection;
+        
 
         //trying to find the fitest grid by using traversal
         int xRho,yRho,xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
         for(int i = 1; i <= pixelsCntPerCentimeter * 29 ; i += 2)
         {
-            int sumValue = 0;
+            int tempPos = i + maxLensInImg;
+            int xSumValue = 0, ySumValue = 0;
             for(int k = i; k <= maxLensInImg ; k+= 100)//100 pixels = 30cm = 1 square
             {
-                sumValue += ((float*)xGridLinesFitting.data)[k];
+                xSumValue += xGridLinesFitting[k];
+                xSumValue += xGridLinesFitting[2*maxLensInImg - k];
+                ySumValue += yGridLinesFitting[k];
+                ySumValue += yGridLinesFitting[2*maxLensInImg - k];
             } 
-            if(sumValue > xMax) 
+            if(xSumValue > xMax) 
             {
-                xMax = sumValue;
+                xMax = xSumValue;
                 xRho = i;
             }
-        }
-        for(int i = 1; i <= pixelsCntPerCentimeter * 29 ; i += 2)
-        {
-            int sumValue = 0;
-            for(int k = i; k <= maxLensInImg ; k+= 100)
+            if(ySumValue > yMax) 
             {
-                sumValue += ((float*)yGridLinesFitting.data)[k];
-            } 
-            if(sumValue > yMax) 
-            {
-                yMax = sumValue;
+                yMax = ySumValue;
                 yRho = i;
             }
         }
+       
 
         //draw grid lines
 
+            Point pt1, pt2;
+            double a,b,x0,y0;
+            a = cos(xAverageDirection), b = sin(xAverageDirection);
+            x0 = a*xRho, y0 = b*xRho;
+            pt1.x = cvRound(x0 + 1000*(-b));
+            pt1.y = cvRound(y0 + 1000*(a));
+            pt2.x = cvRound(x0 - 1000*(-b));
+            pt2.y = cvRound(y0 - 1000*(a));
+            line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
+            
+            a = cos(yAverageDirection), b = sin(yAverageDirection);
+            x0 = a*yRho, y0 = b*yRho;
+            pt1.x = cvRound(x0 + 1000*(-b));
+            pt1.y = cvRound(y0 + 1000*(a));
+            pt2.x = cvRound(x0 - 1000*(-b));
+            pt2.y = cvRound(y0 - 1000*(a));
+            line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
+
+            // int distance[4] = {0, 100, 200, 300};
+            // if(xAverageDirection > CV_PI / 2.0)
+            // {
+            //     double tempTheta = CV_PI - xAverageDirection;
+            //     for(int i = 0; i < 4; i++)
+            //     {
+            //         int rho = xRho + distance[i];
+            //         line(warpedImg,
+            //             Point(warpedWidth - rho / cos(tempTheta),0),
+            //             Point(warpedWidth, rho / sin(tempTheta)),
+            //             Scalar(0,0,255),2,LINE_AA);
+            //     }
+            // }
+            // else
+            // {
+            //     double tempTheta = xAverageDirection;
+            //     for(int i = 0; i < 4; i++)
+            //     {
+            //         int rho = xRho + distance[i];
+            //         line(warpedImg,
+            //             Point(rho / cos(tempTheta),0),
+            //             Point(0, rho / sin(tempTheta)),
+            //             Scalar(0,0,255),2,LINE_AA);
+            //     }
+            // }
+            // if(yAverageDirection > CV_PI / 2.0)
+            // {
+            //     double tempTheta = CV_PI - yAverageDirection;
+            //     for(int i = 0; i < 4; i++)
+            //     {
+            //         int rho = yRho + distance[i];
+            //         line(warpedImg,
+            //             Point(warpedWidth - rho / cos(tempTheta),0),
+            //             Point(warpedWidth, rho / sin(tempTheta)),
+            //             Scalar(0,0,255),2,LINE_AA);
+            //     }
+            // }
+            //  else
+            // {
+            //     double tempTheta = yAverageDirection;
+            //     for(int i = 0; i < 4; i++)
+            //     {
+            //         int rho = yRho + distance[i];
+            //         line(warpedImg,
+            //             Point(rho / cos(tempTheta),0),
+            //             Point(0, rho / sin(tempTheta)),
+            //             Scalar(0,0,255),2,LINE_AA);
+            //     }
+            // }
         
-            int distance[4] = {0, 100, 200, 300};
-            if(xAverageDirection > CV_PI / 2.0)
-            {
-                double tempTheta = CV_PI - xAverageDirection;
-                for(int i = 0; i < 4; i++)
-                {
-                    int rho = xRho + distance[i];
-                    line(warpedImg,
-                        Point(warpedWidth - rho / cos(tempTheta),0),
-                        Point(warpedWidth, rho / sin(tempTheta)),
-                        Scalar(0,0,255),2,LINE_AA);
-                }
-            }
-            else
-            {
-                double tempTheta = xAverageDirection;
-                for(int i = 0; i < 4; i++)
-                {
-                    int rho = xRho + distance[i];
-                    line(warpedImg,
-                        Point(rho / cos(tempTheta),0),
-                        Point(0, rho / sin(tempTheta)),
-                        Scalar(0,0,255),2,LINE_AA);
-                }
-            }
-            if(yAverageDirection > CV_PI / 2.0)
-            {
-                double tempTheta = CV_PI - yAverageDirection;
-                for(int i = 0; i < 4; i++)
-                {
-                    int rho = yRho + distance[i];
-                    line(warpedImg,
-                        Point(warpedWidth - rho / cos(tempTheta),0),
-                        Point(warpedWidth, rho / sin(tempTheta)),
-                        Scalar(0,0,255),2,LINE_AA);
-                }
-            }
-             else
-            {
-                double tempTheta = yAverageDirection;
-                for(int i = 0; i < 4; i++)
-                {
-                    int rho = yRho + distance[i];
-                    line(warpedImg,
-                        Point(rho / cos(tempTheta),0),
-                        Point(0, rho / sin(tempTheta)),
-                        Scalar(0,0,255),2,LINE_AA);
-                }
-            }
-        
         
 
 
 
 
+        xDirectionOfPreviousFrame = xAverageDirection;
+        yDirectionOfPreviousFrame = yAverageDirection;
 
         imshow("gridLines",warpedImg);
 
