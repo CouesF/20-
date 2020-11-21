@@ -29,7 +29,7 @@ Create Topic: RobotPositionInfo
 #define imgPartitionSize 60//(pixels) divide the img into areas. make sure each part has only one cross
 #define gaussianBlurSize 11
 #define pixelsCntPerCentimeter 3.33//TODO: 100p = 30cm
-#define houghLineThreshold pixelsCntPerCentimeter*15.0
+#define houghLineThreshold pixelsCntPerCentimeter*20.0
 #define rotationThreshold (double)(25.0/180.0*CV_PI)
 #define maxLensInImg (double)(sqrt(pow(warpedWidth,2)+pow(warpedHeight,2)) + 4.0)
 #define currentFrame 1
@@ -167,7 +167,7 @@ int main(int argc, char **argv)
         Canny(warpedGrayImg,warpedGrayImg,cannyMinThreshold,cannyMaxThreshold,3);
         imshow("canny",warpedGrayImg);
 	    std::vector<Vec2f>lines;
-	    HoughLines(warpedGrayImg,lines,2,CV_PI/180,houghLineThreshold,0,0);
+	    HoughLines(warpedGrayImg,lines,1,CV_PI/180,houghLineThreshold,0,0);
 	
 	
 
@@ -180,8 +180,8 @@ int main(int argc, char **argv)
         std::cout<<lines.size()<<std::endl;
         
         //debug data
-        ofstream outfile;
-        outfile.open("degreeData",ios::out | ios::app);
+        std::ofstream outfile;
+        outfile.open("/home/pi/degreeData",std::ios::out | std::ios::app);
 
 
 
@@ -219,7 +219,7 @@ int main(int argc, char **argv)
 
 	        line(warpedImg,pt1,pt2,Scalar(0,0,255),2,LINE_AA);
             
-            outfile << "rho: "<< rho << " Theta: " << theta << std::endl
+            outfile << "rho: "<< rho << " Theta: " << theta << std::endl;
 	    
         }
 
@@ -265,7 +265,7 @@ int main(int argc, char **argv)
 
         //draw grid lines
 
-       /* 
+        
             int distance[4] = {0, 100, 200, 300};
             if(xAverageDirection > CV_PI / 2.0)
             {
@@ -316,13 +316,13 @@ int main(int argc, char **argv)
                 }
             }
         
-        */
+        
 
 
 
 
 
-        //imshow("gridLines",warpedImg);
+        imshow("gridLines",warpedImg);
 
 	    waitKey(10);
 
