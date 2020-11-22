@@ -255,18 +255,18 @@ int main(int argc, char **argv)
 
         //trying to find the fitest grid by using traversal
         int xRho,yRho,xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
-        for(int i = 1; i <= pixelsCntPerCentimeter * 29 ; i += 2)
+        for(int i = maxLensInImg; i <= maxLensInImg + pixelsCntPerCentimeter * 29 ; i += 2)
         {
-            int tempPos = i + maxLensInImg;
+            //int tempPos = i + maxLensInImg;
             int xSumValue = 0, ySumValue = 0;
-            for(int k = i; k <= maxLensInImg ; k+= 100)//100 pixels = 30cm = 1 square
+            for(int k = i; k <= maxLensInImg * 2 + 9 ; k+= 100)//100 pixels = 30cm = 1 square
             {
                 for( int j = 1; j <= 9 ; j++)
                 {
                     xSumValue += xGridLinesFitting[k + j - 5];
-                    xSumValue += xGridLinesFitting[int(2*maxLensInImg - k) + j - 5];
+                    //xSumValue += xGridLinesFitting[i - k + j - 5];
                     ySumValue += yGridLinesFitting[k + j - 5];
-                    ySumValue += yGridLinesFitting[int(2*maxLensInImg - k) + j - 5];
+                    //ySumValue += yGridLinesFitting[int(2*maxLensInImg - k) + j - 5];
                 }
                 
             } 
