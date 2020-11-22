@@ -216,8 +216,8 @@ int main(int argc, char **argv)
             //line(warpedImg,Point(150+a*100,150+b*100),Point(100,100),Scalar(255,0,0),2,LINE_AA);
 
 
-	        //filter of the parallel lines of x and y
-	        //DONE: direction changed from pi to 0
+            //filter of the parallel lines of x and y
+            //DONE: direction changed from pi to 0
             if(abs(sin(theta - xDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
 	        {
                 if((xDirectionOfPreviousFrame < rotationThreshold || xDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
@@ -261,10 +261,14 @@ int main(int argc, char **argv)
             int xSumValue = 0, ySumValue = 0;
             for(int k = i; k <= maxLensInImg ; k+= 100)//100 pixels = 30cm = 1 square
             {
-                xSumValue += xGridLinesFitting[k];
-                xSumValue += xGridLinesFitting[int(2*maxLensInImg - k)];
-                ySumValue += yGridLinesFitting[k];
-                ySumValue += yGridLinesFitting[int(2*maxLensInImg - k)];
+                for( int j = 1; j <= 9 ; j++)
+                {
+                    xSumValue += xGridLinesFitting[k + j - 5];
+                    xSumValue += xGridLinesFitting[int(2*maxLensInImg - k) + j - 5];
+                    ySumValue += yGridLinesFitting[k + j - 5];
+                    ySumValue += yGridLinesFitting[int(2*maxLensInImg - k) + j - 5];
+                }
+                
             } 
             if(xSumValue > xMax) 
             {
@@ -314,6 +318,8 @@ int main(int argc, char **argv)
             line(xCanvas,Point(i,0),Point(i,xGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
             line(yCanvas,Point(i,0),Point(i,yGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
         }
+        line(xCanvas,Point(xRho,0),Point(xRho,300),Scalar(255,0,0),1,LINE_8);
+        line(yCanvas,Point(yRho,0),Point(yRho,300),Scalar(255,0,0),1,LINE_8);
         imshow("xxx",xCanvas);
         imshow("yyy",yCanvas);
 
