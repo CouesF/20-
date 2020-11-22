@@ -54,7 +54,7 @@ void calculateGaussianPara()
     double gap = 4.0 / pixelsCntPerCentimeter / 3.0;
     for(int i = 1;i <= pixelsCntPerCentimeter * 3;i++)
     {
-        gaussianPara[i] = para * exp(-pow((double)(-2+(double)i*gap),2)/2.0)*2000.0;
+        gaussianPara[i] = para * exp(-pow((double)(-2+(double)i*gap),2)/2.0)*30.0;
     }
 }
 
@@ -97,7 +97,7 @@ int main(int argc, char **argv)
         //bool isCrossExists[2][areaXCount][areaYCount];
         //int localizationData[2][areaXCount][areaYCount][2];
         //int coord[2][areaXCount][areaYCount][2];
-    double xDirectionOfPreviousFrame = 0.0,yDirectionOfPreviousFrame = CV_PI/2;//theta in img.
+    double xDirectionOfPreviousFrame = CV_PI/2,yDirectionOfPreviousFrame = 0;//theta in img.
 
     // cap initialization and setting
     cap.open(0);
@@ -148,7 +148,7 @@ int main(int argc, char **argv)
         Mat lambda = getPerspectiveTransform(perspectiveTransformOriginPoint,perspectiveTransformWarpedPointa);
         warpPerspective(originImg,warpedImg,lambda, Size(320,300),INTER_LINEAR);
 
-	    line(warpedImg,Point(30,30),Point(130,30),Scalar(0,0,255),2,LINE_AA);
+	    //1line(warpedImg,Point(30,30),Point(130,30),Scalar(0,0,255),2,LINE_AA);
         imshow("warpedImg",warpedImg);
         
         
@@ -223,6 +223,7 @@ int main(int argc, char **argv)
                 if((xDirectionOfPreviousFrame < rotationThreshold || xDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
                 {
                     theta -= CV_PI;
+                    rho = - rho;
                 }
                 gaussianSum(rho,0);
                 xCountOfAverage++;
@@ -233,6 +234,7 @@ int main(int argc, char **argv)
                 if((yDirectionOfPreviousFrame < rotationThreshold || yDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
                 {
                     theta -= CV_PI;
+                    rho = - rho;
                 }
                 gaussianSum(rho,1);
                 yCountOfAverage++;
@@ -305,8 +307,8 @@ int main(int argc, char **argv)
 
         Mat xCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
         Mat yCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
-        line(xCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax));//y axis
-        line(yCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax));//y axis
+        line(xCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
+        line(yCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
         for(int i = 0;i<maxLensInImg *2 + 20;i++)
         {
             line(xCanvas,Point(i,0),Point(i,xGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
