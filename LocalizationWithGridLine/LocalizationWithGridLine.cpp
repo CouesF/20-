@@ -77,7 +77,13 @@ void gaussianSum(int pixelPosition,int k)// TODO:rewrite using array
         }
     }
 }
+struct position
+{
+    double Dir; //robot direction in global map. Initial direction is -pi/2
+    double x,y;
     
+}robotGloabalPosition;
+
 
 int main(int argc, char **argv)
 {
@@ -98,6 +104,9 @@ int main(int argc, char **argv)
         //int localizationData[2][areaXCount][areaYCount][2];
         //int coord[2][areaXCount][areaYCount][2];
     double xDirectionOfPreviousFrame = CV_PI/2,yDirectionOfPreviousFrame = 0;//theta in img.
+    robotGlobalPosition->Dir =  -CV_PI / 2; //robot direction in global map. Initial direction is -pi/2
+    int xGlobal = 0, yGlobal = 0;
+    int xRho,yRho,xPreviousRho = 0,yPreviousRho = 0;
 
     // cap initialization and setting
     cap.open(0);
@@ -149,7 +158,7 @@ int main(int argc, char **argv)
         warpPerspective(originImg,warpedImg,lambda, Size(320,300),INTER_LINEAR);
 
 	    //1line(warpedImg,Point(30,30),Point(130,30),Scalar(0,0,255),2,LINE_AA);
-        imshow("warpedImg",warpedImg);
+        //imshow("warpedImg",warpedImg);
         
         
         //Rect rect(0,0,imgWidthCut,imgHeightCut);
@@ -175,9 +184,9 @@ int main(int argc, char **argv)
 
 	    //Img pre-processing and line detection
 	    GaussianBlur(warpedGrayImg,warpedGrayImg,Size(gaussianBlurSize,gaussianBlurSize),0);
-        imshow("GaussialBlur",warpedGrayImg);
+        //imshow("GaussialBlur",warpedGrayImg);
         Canny(warpedGrayImg,warpedGrayImg,cannyMinThreshold,cannyMaxThreshold,3);
-        imshow("canny",warpedGrayImg);
+        //imshow("canny",warpedGrayImg);
 	    std::vector<Vec2f>lines;
 	    HoughLines(warpedGrayImg,lines,1,CV_PI/180,houghLineThreshold,0,0);
 	
@@ -211,7 +220,6 @@ int main(int argc, char **argv)
             pt1.y = cvRound(y0 + 1000*(a));
             pt2.x = cvRound(x0 - 1000*(-b));
             pt2.y = cvRound(y0 - 1000*(a));
-            
             
             //line(warpedImg,Point(150+a*100,150+b*100),Point(100,100),Scalar(255,0,0),2,LINE_AA);
 
@@ -248,13 +256,12 @@ int main(int argc, char **argv)
         
         imshow("hough lines",warpedImg);
 
-        outfile << "xDir: "<< xDirectionOfPreviousFrame << " yDir: " << yDirectionOfPreviousFrame << std::endl;
         xAverageDirection = xAverageDirection / double(xCountOfAverage);// from -15 deg to 170 deg (using radian)
         yAverageDirection = yAverageDirection / double(yCountOfAverage);
         
 
         //trying to find the fitest grid by using traversal
-        int xRho,yRho,xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
+        int xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
         for(int i = maxLensInImg; i <= maxLensInImg + pixelsCntPerCentimeter * 29 ; i += 2)
         {
             //int tempPos = i + maxLensInImg;
@@ -273,12 +280,12 @@ int main(int argc, char **argv)
             if(xSumValue > xMax) 
             {
                 xMax = xSumValue;
-                xRho = i;
+                xRho = i - maxLensInImg;
             }
             if(ySumValue > yMax) 
             {
                 yMax = ySumValue;
-                yRho = i;
+                yRho = i - maxLensInImg;
             }
         }
        
@@ -323,60 +330,21 @@ int main(int argc, char **argv)
         imshow("xxx",xCanvas);
         imshow("yyy",yCanvas);
 
-            // int distance[4] = {0, 100, 200, 300};
-            // if(xAverageDirection > CV_PI / 2.0)
-            // {
-            //     double tempTheta = CV_PI - xAverageDirection;
-            //     for(int i = 0; i < 4; i++)
-            //     {
-            //         int rho = xRho + distance[i];
-            //         line(warpedImg,
-            //             Point(warpedWidth - rho / cos(tempTheta),0),
-            //             Point(warpedWidth, rho / sin(tempTheta)),
-            //             Scalar(0,0,255),2,LINE_AA);
-            //     }
-            // }
-            // else
-            // {
-            //     double tempTheta = xAverageDirection;
-            //     for(int i = 0; i < 4; i++)
-            //     {
-            //         int rho = xRho + distance[i];
-            //         line(warpedImg,
-            //             Point(rho / cos(tempTheta),0),
-            //             Point(0, rho / sin(tempTheta)),
-            //             Scalar(0,0,255),2,LINE_AA);
-            //     }
-            // }
-            // if(yAverageDirection > CV_PI / 2.0)
-            // {
-            //     double tempTheta = CV_PI - yAverageDirection;
-            //     for(int i = 0; i < 4; i++)
-            //     {
-            //         int rho = yRho + distance[i];
-            //         line(warpedImg,
-            //             Point(warpedWidth - rho / cos(tempTheta),0),
-            //             Point(warpedWidth, rho / sin(tempTheta)),
-            //             Scalar(0,0,255),2,LINE_AA);
-            //     }
-            // }
-            //  else
-            // {
-            //     double tempTheta = yAverageDirection;
-            //     for(int i = 0; i < 4; i++)
-            //     {
-            //         int rho = yRho + distance[i];
-            //         line(warpedImg,
-            //             Point(rho / cos(tempTheta),0),
-            //             Point(0, rho / sin(tempTheta)),
-            //             Scalar(0,0,255),2,LINE_AA);
-            //     }
-            // }
-        
-        
+
+        //localization data calculation
+        robotDirection += -(xAverageDirection - xDirectionOfPreviousFrame)//i shall test the range of output
+        int xDeltaRho = xRho - xPreviousRho, yDeltaRho = yRho - yPreviousRho;
+        if(abs(xDeltaRho) >= pixelsCntPerCentimeter * 21)
+        {
+            if(sin(robotDirection) < 0)
+        }
 
 
 
+
+        //reset
+        outfile << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
+                 <<"  yRho: "<< yRho <<" bot dir: " << robotDirection << std::endl;
 
         xDirectionOfPreviousFrame = xAverageDirection;
         yDirectionOfPreviousFrame = yAverageDirection;
@@ -385,8 +353,9 @@ int main(int argc, char **argv)
 
 	    waitKey(10);
 
-    outfile.close();
+    
     
     }
+    outfile.close();
     return 0;
 }
