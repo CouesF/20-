@@ -20,6 +20,7 @@ Create Topic: RobotPositionInfo
 #include <fstream> //for debug. output to a file
 #include <string.h> // memset
 
+
 #define imgWidth 640
 #define imgHeight 360
 #define imgWidthCut 640
@@ -78,6 +79,18 @@ void gaussianSum(int pixelPosition,int k)// TODO:rewrite using array
     }
 }
 
+float getAngelOfTwoVector(Point2f &pt1, Point2f &pt2, Point2f &c)
+{
+	float theta = atan2(pt1.x - c.x, pt1.y - c.y) - atan2(pt2.x - c.x, pt2.y - c.y);
+	if (theta > CV_PI)
+		theta -= 2 * CV_PI;
+	if (theta < -CV_PI)
+		theta += 2 * CV_PI;
+ 
+	//theta = theta * 180.0 / CV_PI;
+	return theta;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -99,10 +112,38 @@ int main(int argc, char **argv)
         //int coord[2][areaXCount][areaYCount][2];
     double xDirectionOfPreviousFrame = CV_PI/2,yDirectionOfPreviousFrame = 0;//theta in img.
     double robotGlobalDirection =  -CV_PI / 2; //robot direction in global map. Initial direction is -pi/2
-    double robotGlobalX,robotGlobalY;
+    double robotGlobalX = 0,robotGlobalY = 0;
     int xGlobal = 0, yGlobal = 0;
 
     int xRho,yRho,xPreviousRho = 0,yPreviousRho = 0;
+
+    //TODO: initial the point
+    int previousCrossExists[8][8];//6*6means devide the img into 6*6 cells
+    memset(previousCrossExists,0,sizeof(previousCrossExists));
+    double previousCrossPosition[8][8][2];//0-x 1-y
+    previousCrossExists[1][1] = 1;
+    previousCrossExists[2][1] = 1;
+    previousCrossExists[4][1] = 1;
+    previousCrossExists[1][2] = 1;
+    previousCrossExists[1][4] = 1;
+    previousCrossExists[2][2] = 1;
+    previousCrossExists[4][4] = 1;
+    previousCrossPosition[1][1][0] = 10;
+    previousCrossPosition[1][1][1] = 10;
+    previousCrossPosition[2][1][0] = 110;
+    previousCrossPosition[2][1][1] = 10;
+    previousCrossPosition[4][1][0] = 210;
+    previousCrossPosition[4][1][1] = 10;
+    previousCrossPosition[1][2][0] = 10;
+    previousCrossPosition[1][2][1] = 110;
+    previousCrossPosition[1][4][0] = 10;
+    previousCrossPosition[1][4][1] = 210;
+    previousCrossPosition[2][2][0] = 110;
+    previousCrossPosition[2][2][1] = 110;
+    previousCrossPosition[4][4][0] = 210;
+    previousCrossPosition[4][4][1] = 210;
+    
+
 
     // cap initialization and setting
     cap.open(0);
@@ -312,43 +353,121 @@ int main(int argc, char **argv)
 
         //draw debug data of gaussion sum 
 
-        Mat xCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
-        Mat yCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
-        line(xCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
-        line(yCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
-        for(int i = 0;i<maxLensInImg *2 + 20;i++)
-        {
-            line(xCanvas,Point(i,0),Point(i,xGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
-            line(yCanvas,Point(i,0),Point(i,yGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
-        }
-        line(xCanvas,Point(xRho,0),Point(xRho,300),Scalar(255,0,0),1,LINE_8);
-        line(yCanvas,Point(yRho,0),Point(yRho,300),Scalar(255,0,0),1,LINE_8);
-        imshow("xxx",xCanvas);
-        imshow("yyy",yCanvas);
+        // Mat xCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
+        // Mat yCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
+        // line(xCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
+        // line(yCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
+        // for(int i = 0;i<maxLensInImg *2 + 20;i++)
+        // {
+        //     line(xCanvas,Point(i,0),Point(i,xGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
+        //     line(yCanvas,Point(i,0),Point(i,yGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
+        // }
+        // line(xCanvas,Point(xRho,0),Point(xRho,300),Scalar(255,0,0),1,LINE_8);
+        // line(yCanvas,Point(yRho,0),Point(yRho,300),Scalar(255,0,0),1,LINE_8);
+        // imshow("xxx",xCanvas);
+        // imshow("yyy",yCanvas);
 
 
         //localization data calculation
-        robotGlobalDirection += -(xAverageDirection - xDirectionOfPreviousFrame);//i shall test the range of output
-        int xDeltaRho = xRho - xPreviousRho, yDeltaRho = yRho - yPreviousRho;
-        if(abs(xDeltaRho) >= pixelsCntPerCentimeter * 21)
-        {
-           // if(sin(robotDirection) < 0)
-        }
+        //robotGlobalDirection += -(xAverageDirection - xDirectionOfPreviousFrame);//i shall test the range of output
+        //int xDeltaRho = xRho - xPreviousRho, yDeltaRho = yRho - yPreviousRho;
+        // if(abs(xDeltaRho) >= pixelsCntPerCentimeter * 21)
+        // {
+        //    // if(sin(robotDirection) < 0)
+        // }
 
+
+
+
+        //here, i have the rho and theta of one x and one y axis
+        // cos(xtheta) = a1 sin(xtheta) = b1 
+        // cos y         a2 sin y         b2
+        //xAverageDirection yAverageDirection
+        // xRho yRho
         //get cross point
-        double crossX,crossY;
-        crossX = (yRho / b2 - xRho / b1) / (a2 / b2 - a1 / b1);
-        crossY = ( -a1 / b1) * crossX + xRho / b1;
-        circle(warpedImg, Point(crossX,crossY), 5, Scalar(0, 255, 0), -1);
+        int crossExists[8][8];
+        int crossPosition[8][8][2];//0-x 1-y
+        vector<Point>cellFlag;
+        memset(crossExists,0,sizeof(crossExists));
+        memset(crossPosition,0,sizeof(crossPosition));
+
+        for(int i = -2; i <= 2; i++) //traversal different parellel line of x / y to get all the crosses
+        {
+            int xTempRho = xRho + i * 30 * pixelsCntPerCentimeter ;
+            for(int k = -2; k <= 2; k++)
+            {
+                int yTempRho = yRho + i * 30 * pixelsCntPerCentimeter ;
+                float crossX,crossY;
+                crossX = (yTempRho / b2 - xTempRho / b1) / (a2 / b2 - a1 / b1);
+                crossY = ( -a1 / b1) * crossX + xTempRho / b1;
+                if(crossX <= 300 && crossX >= 0 && crossY <= 300 && crossY >= 0)//cross in img
+                {
+                    circle(warpedImg, Point(crossX,crossY), 5, Scalar(0, 255, 0), -1);
+                    crossExists[int(crossX/60)][int(crossY/60)] = 1;
+                    crossPosition[int(crossX/60)][int(crossY/60)][0] = crossX;
+                    cellFlag.push_back(Point(int(crossX/60),int(crossY/60)));
+                    crossPosition[int(crossX/60)][int(crossY/60)][1] = crossY;
+
+                }
+                
 
 
+            }
+        }
+        //most of this is written late in the night. forgive me for the sh*t-like code
+        int crossCnt = 0;
+        double previousLine[2][2]; 
+        double currentLine[2][2];
+        int pointCnt = 0;
+        for(int i = 0;i < crossFlag.size();i++)
+        {
+            int tempX = crossFlag[i].x;
+            int tempY = crossFlag[i].y;
+            for(int i2 = -1 ; i2 <= 1; i2++)
+            {
+                for(int i3 = -1;i3 <= 1;i3++)
+                {
+                    if(previousCrossExists[tempX + i2][tempY + i3] == 1
+                        && (pow(previousCrossPosition[tempX + i2][tempY + i3][0] 
+                        - crossPosition[tempX][tempY][0],2) 
+                        + pow(previousCrossPosition[tempX + i2][tempY + i3][1] 
+                        - crossPosition[tempX][tempY][1],2))
+                        <= pow(10 * pixelsCntPerCentimeter, 2) )//if two point matches(between previous frame and current)
+                    {
+                        i2 = 2; i3 = 2;
+                        previousLine[pointCnt][0] = previousCrossPosition[tempX + i2][tempY + i3][0];
+                        previousLine[pointCnt][1] = previousCrossPosition[tempX + i2][tempY + i3][1];
+                        currentLine[pointCnt][0] = crossPosition[tempX + i2][tempY + i3][0];
+                        currentLine[pointCnt][1] = crossPosition[tempX + i2][tempY + i3][1];
+                        pointCnt++;
+                        if(pointCnt >= 2) i = crossFlag.size()+1;
+                    }
 
-        //reset
-        std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
-                 <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
+                }
+            }
+        }
+        //now i have two point in two frame respectively
+        // i have to calculate the change between two frame.
+        // i can see i m gonna to success!
+        double previousTheta = atan2(previousLine[0][1]-previousLine[1][1],
+                                    previousLine[0][0]-previousLine[1][0]);
+        double currentTheta = atan2(currentLine[0][1]-currentLine[1][1],
+                                    currentLine[0][0]-currentLine[1][0]);
+        double deltaTheta_ = currentTheta - previousTheta;
+        robotGlobalDirection += deltaTheta_;
+        double rCurrentPoint1 = sqrt(pow(currentLine[0][0],2) + pow(currentLine[0][1],2);
+        double point1Theta = - deltaTheta_ + atan2(currentLine[0][1],currentLine[0][0]);
+        double transformedX = cos(point1Theta) * rCurrentPoint1;
+        double transformedY = sin(point1Theta) * rCurrentPoint1;
+        robotGlobalX += - (transformedX - previousLine[0][0]);
+        robotGlobalY += - (transformedY - previousLine[0][1]);
         
-        xDirectionOfPreviousFrame = xAverageDirection;
-        yDirectionOfPreviousFrame = yAverageDirection;
+        //reset
+        //std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
+         //        <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
+        std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
+        //xDirectionOfPreviousFrame = xAverageDirection;
+        //yDirectionOfPreviousFrame = yAverageDirection;
         
         imshow("gridLines",warpedImg);
 
