@@ -77,12 +77,6 @@ void gaussianSum(int pixelPosition,int k)// TODO:rewrite using array
         }
     }
 }
-struct position
-{
-    double Dir; //robot direction in global map. Initial direction is -pi/2
-    double x,y;
-    
-}robotGloabalPosition;
 
 
 int main(int argc, char **argv)
@@ -104,8 +98,10 @@ int main(int argc, char **argv)
         //int localizationData[2][areaXCount][areaYCount][2];
         //int coord[2][areaXCount][areaYCount][2];
     double xDirectionOfPreviousFrame = CV_PI/2,yDirectionOfPreviousFrame = 0;//theta in img.
-    robotGlobalPosition->Dir =  -CV_PI / 2; //robot direction in global map. Initial direction is -pi/2
+    double robotGlobalDirection =  -CV_PI / 2; //robot direction in global map. Initial direction is -pi/2
+    double robotGlobalX,robotGlobalY;
     int xGlobal = 0, yGlobal = 0;
+
     int xRho,yRho,xPreviousRho = 0,yPreviousRho = 0;
 
     // cap initialization and setting
@@ -148,7 +144,7 @@ int main(int argc, char **argv)
     while (ros::ok())
     {
 	    //get the stream and cut the im
-        for(int i = 1;i <= 2;i++)
+        //for(int i = 1;i <= 1;i++)
             cap.grab();
         //while(cap.grab()){}
         cap >> originImg;
@@ -200,7 +196,7 @@ int main(int argc, char **argv)
         double xAverageDirection = 0,yAverageDirection = 0, xCountOfAverage = 0, yCountOfAverage = 0;
         
         
-        std::cout<<lines.size()<<std::endl;
+        //std::cout<<lines.size()<<std::endl;
         
         //debug data
         std::ofstream outfile;
@@ -268,7 +264,7 @@ int main(int argc, char **argv)
             int xSumValue = 0, ySumValue = 0;
             for(int k = i; k <= maxLensInImg * 2 + 9 ; k+= 100)//100 pixels = 30cm = 1 square
             {
-                for( int j = 1; j <= 9 ; j++)
+                for( int j = 1; j <= 7; j++)
                 {
                     xSumValue += xGridLinesFitting[k + j - 5];
                     //xSumValue += xGridLinesFitting[i - k + j - 5];
@@ -293,21 +289,21 @@ int main(int argc, char **argv)
         //draw grid lines
 
         Point pt1, pt2;
-        double a,b,x0,y0;
-        a = cos(xAverageDirection), b = sin(xAverageDirection);
-        x0 = a*xRho, y0 = b*xRho;
-        pt1.x = cvRound(x0 + 1000*(-b));
-        pt1.y = cvRound(y0 + 1000*(a));
-        pt2.x = cvRound(x0 - 1000*(-b));
-        pt2.y = cvRound(y0 - 1000*(a));
+        double a1,b1,x0,y0,a2,b2;
+        a1 = cos(xAverageDirection), b1 = sin(xAverageDirection);
+        x0 = a1*xRho, y0 = b1*xRho;
+        pt1.x = cvRound(x0 + 1000*(-b1));
+        pt1.y = cvRound(y0 + 1000*(a1));
+        pt2.x = cvRound(x0 - 1000*(-b1));
+        pt2.y = cvRound(y0 - 1000*(a1));
         line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
         
-        a = cos(yAverageDirection), b = sin(yAverageDirection);
-        x0 = a*yRho, y0 = b*yRho;
-        pt1.x = cvRound(x0 + 1000*(-b));
-        pt1.y = cvRound(y0 + 1000*(a));
-        pt2.x = cvRound(x0 - 1000*(-b));
-        pt2.y = cvRound(y0 - 1000*(a));
+        a2 = cos(yAverageDirection), b2 = sin(yAverageDirection);
+        x0 = a2*yRho, y0 = b2*yRho;
+        pt1.x = cvRound(x0 + 1000*(-b2));
+        pt1.y = cvRound(y0 + 1000*(a2));
+        pt2.x = cvRound(x0 - 1000*(-b2));
+        pt2.y = cvRound(y0 - 1000*(a2));
         line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
 
 
@@ -332,23 +328,28 @@ int main(int argc, char **argv)
 
 
         //localization data calculation
-        robotDirection += -(xAverageDirection - xDirectionOfPreviousFrame)//i shall test the range of output
+        robotGlobalDirection += -(xAverageDirection - xDirectionOfPreviousFrame);//i shall test the range of output
         int xDeltaRho = xRho - xPreviousRho, yDeltaRho = yRho - yPreviousRho;
         if(abs(xDeltaRho) >= pixelsCntPerCentimeter * 21)
         {
-            if(sin(robotDirection) < 0)
+           // if(sin(robotDirection) < 0)
         }
 
+        //get cross point
+        double crossX,crossY;
+        crossX = (yRho / b2 - xRho / b1) / (a2 / b2 - a1 / b1);
+        crossY = ( -a1 / b1) * crossX + xRho / b1;
+        circle(warpedImg, Point(crossX,crossY), 5, Scalar(0, 255, 0), -1);
 
 
 
         //reset
-        outfile << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
-                 <<"  yRho: "<< yRho <<" bot dir: " << robotDirection << std::endl;
-
+        std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
+                 <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
+        
         xDirectionOfPreviousFrame = xAverageDirection;
         yDirectionOfPreviousFrame = yAverageDirection;
-
+        
         imshow("gridLines",warpedImg);
 
 	    waitKey(10);
@@ -356,6 +357,7 @@ int main(int argc, char **argv)
     
     
     }
-    outfile.close();
+    //outfile.close();
     return 0;
 }
+
