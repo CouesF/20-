@@ -293,7 +293,7 @@ int main(int argc, char **argv)
                 if(xAverageDirection > CV_PI) xAverageDirection -= CV_PI;
                 else if(xAverageDirection < 0) xAverageDirection += CV_PI;
                 if(yAverageDirection > CV_PI) yAverageDirection -= CV_PI;
-                else if(yAverageDirection < 0) y    AverageDirection += CV_PI;
+                else if(yAverageDirection < 0) yAverageDirection += CV_PI;
 
                 
             }
