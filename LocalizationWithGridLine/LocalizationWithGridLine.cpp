@@ -110,7 +110,7 @@ int main(int argc, char **argv)
         //bool isCrossExists[2][areaXCount][areaYCount];
         //int localizationData[2][areaXCount][areaYCount][2];
         //int coord[2][areaXCount][areaYCount][2];
-    double xDirectionOfPreviousFrame = CV_PI/2,yDirectionOfPreviousFrame = 0;//theta in img.
+    double xDirectionOfPreviousFrame = 0,yDirectionOfPreviousFrame = CV_PI/2;//theta in img.
     double robotGlobalDirection =  -CV_PI / 2; //robot direction in global map. Initial direction is -pi/2
     double robotGlobalX = 0,robotGlobalY = 0;
     int xGlobal = 0, yGlobal = 0;
@@ -353,19 +353,19 @@ int main(int argc, char **argv)
 
         //draw debug data of gaussion sum 
 
-        // Mat xCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
-        // Mat yCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
-        // line(xCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
-        // line(yCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
-        // for(int i = 0;i<maxLensInImg *2 + 20;i++)
-        // {
-        //     line(xCanvas,Point(i,0),Point(i,xGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
-        //     line(yCanvas,Point(i,0),Point(i,yGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
-        // }
-        // line(xCanvas,Point(xRho,0),Point(xRho,300),Scalar(255,0,0),1,LINE_8);
-        // line(yCanvas,Point(yRho,0),Point(yRho,300),Scalar(255,0,0),1,LINE_8);
-        // imshow("xxx",xCanvas);
-        // imshow("yyy",yCanvas);
+         Mat xCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
+         Mat yCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
+         line(xCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
+         line(yCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
+         for(int i = 0;i<maxLensInImg *2 + 20;i++)
+         {
+             line(xCanvas,Point(i,0),Point(i,xGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
+             line(yCanvas,Point(i,0),Point(i,yGridLinesFitting[i]),Scalar(255,0,0),1,LINE_8);
+         }
+         line(xCanvas,Point(xRho + maxLensInImg,0),Point(xRho + maxLensInImg,300),Scalar(255,0,0),1,LINE_8);
+         line(yCanvas,Point(yRho + maxLensInImg,0),Point(yRho + maxLensInImg,300),Scalar(255,0,0),1,LINE_8);
+         imshow("xxx",xCanvas);
+         imshow("yyy",yCanvas);
 
 
         //localization data calculation
@@ -387,7 +387,7 @@ int main(int argc, char **argv)
         //get cross point
         int crossExists[8][8];
         int crossPosition[8][8][2];//0-x 1-y
-        vector<Point>cellFlag;
+        std::vector<Point>cellFlag;
         memset(crossExists,0,sizeof(crossExists));
         memset(crossPosition,0,sizeof(crossPosition));
 
@@ -419,10 +419,10 @@ int main(int argc, char **argv)
         double previousLine[2][2]; 
         double currentLine[2][2];
         int pointCnt = 0;
-        for(int i = 0;i < crossFlag.size();i++)
+        for(int i = 0;i < cellFlag.size();i++)
         {
-            int tempX = crossFlag[i].x;
-            int tempY = crossFlag[i].y;
+            int tempX = cellFlag[i].x;
+            int tempY = cellFlag[i].y;
             for(int i2 = -1 ; i2 <= 1; i2++)
             {
                 for(int i3 = -1;i3 <= 1;i3++)
@@ -440,7 +440,7 @@ int main(int argc, char **argv)
                         currentLine[pointCnt][0] = crossPosition[tempX + i2][tempY + i3][0];
                         currentLine[pointCnt][1] = crossPosition[tempX + i2][tempY + i3][1];
                         pointCnt++;
-                        if(pointCnt >= 2) i = crossFlag.size()+1;
+                        if(pointCnt >= 2) i = cellFlag.size()+1;
                     }
 
                 }
@@ -455,7 +455,7 @@ int main(int argc, char **argv)
                                     currentLine[0][0]-currentLine[1][0]);
         double deltaTheta_ = currentTheta - previousTheta;
         robotGlobalDirection += deltaTheta_;
-        double rCurrentPoint1 = sqrt(pow(currentLine[0][0],2) + pow(currentLine[0][1],2);
+        double rCurrentPoint1 = sqrt(pow(currentLine[0][0],2) + pow(currentLine[0][1],2));
         double point1Theta = - deltaTheta_ + atan2(currentLine[0][1],currentLine[0][0]);
         double transformedX = cos(point1Theta) * rCurrentPoint1;
         double transformedY = sin(point1Theta) * rCurrentPoint1;
@@ -464,14 +464,27 @@ int main(int argc, char **argv)
         
         //reset
         //std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
-         //        <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
-        std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
+        for(int i = 0; i <= 7; i++)
+        {
+            for(int i2 = 0; i2 <= 7; i2++)
+            {
+                previousCrossExists[i][i2] = crossExists[i][i2];
+               previousCrossPosition[i][i2][0] = crossPosition[i][i2][0];
+               previousCrossPosition[i][i2][1] = crossPosition[i][i2][1];
+            }
+        }            
+
+        //memcpy(previousCrossExists,crossExists,sizeof(crossExists));
+        //memcpy(previousCrossPosition,crossPosition,sizeof(crossPosition));
+        std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
+                 <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
+        //std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
         xDirectionOfPreviousFrame = xAverageDirection;
         yDirectionOfPreviousFrame = yAverageDirection;
         
         imshow("gridLines",warpedImg);
 
-	    waitKey(10);
+	    waitKey(1);
 
     
     
