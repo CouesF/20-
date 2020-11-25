@@ -262,29 +262,63 @@ int main(int argc, char **argv)
 
 
             //filter of the parallel lines of x and y
-            //DONE: direction changed from pi to 0
-            if(abs(sin(theta - xDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
-	        {
-                if((xDirectionOfPreviousFrame < rotationThreshold || xDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
+            //TODO: direction changed from pi to 0
+            // calculate current angle of x and y in img [0,pi)
+            {
+                double deltaThetaX = theta - xDirectionOfPreviousFrame;
+                double deltaThetaY = theta - yDirectionOfPreviousFrame;
+                double deltaThetaXSum = 0;
+                double deltaThetaYSum = 0;
+                double averageDeltaX, averageDeltaY;
+                double xDirCnt = 0, yDirCnt = 0;
+
+                if(deltaThetaX > CV_PI / 2.0) deltaThetaX -= CV_PI;
+                else if (deltaThetaX < - CV_PI / 2.0) deltaThetaX += CV_PI;
+                if(deltaThetaY > CV_PI / 2.0) deltaThetaY -= CV_PI;
+                else if (deltaThetaY < - CV_PI / 2.0) deltaThetaY += CV_PI;
+                if(abs(deltaThetaX) < rotationThreshold)//it is x line
                 {
-                    theta -= CV_PI;
-                    rho = - rho;
+                    deltaThetaXSum += deltaThetaX;
+                    xDirCnt++;
                 }
-                gaussianSum(rho,0);
-                xCountOfAverage++;
-                xAverageDirection += theta;
-            }
-            else if(abs(sin(theta - yDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
-	        {
-                if((yDirectionOfPreviousFrame < rotationThreshold || yDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
+                else if(abs(deltaThetaY) < rotationThreshold)//it is x line
                 {
-                    theta -= CV_PI;
-                    rho = - rho;
+                    deltaThetaYSum += deltaThetaY;
+                    yDirCnt++;
                 }
-                gaussianSum(rho,1);
-                yCountOfAverage++;
-                yAverageDirection += theta;
+                averageDeltaX = deltaThetaXSum / double(xDirCnt);
+                averageDeltaY = deltaThetaYSum / double(yDirCnt);
+                xAverageDirection = xDirectionOfPreviousFrame + averageDeltaX;
+                yAverageDirection = yDirectionOfPreviousFrame + averageDeltaY;
+                if(xAverageDirection > CV_PI) xAverageDirection -= CV_PI;
+                else if(xAverageDirection < 0) xAverageDirection += CV_PI;
+                if(yAverageDirection > CV_PI) yAverageDirection -= CV_PI;
+                else if(yAverageDirection < 0) y    AverageDirection += CV_PI;
+
+                
             }
+            // if(abs(sin(theta - xDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
+	        // {
+            //     if((xDirectionOfPreviousFrame < rotationThreshold || xDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
+            //     {
+            //         theta -= CV_PI;
+            //         rho = - rho;
+            //     }
+            //     gaussianSum(rho,0);
+            //     xCountOfAverage++;
+            //     xAverageDirection += theta;
+            // }
+            // else if(abs(sin(theta - yDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
+	        // {
+            //     if((yDirectionOfPreviousFrame < rotationThreshold || yDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
+            //     {
+            //         theta -= CV_PI;
+            //         rho = - rho;
+            //     }
+            //     gaussianSum(rho,1);
+            //     yCountOfAverage++;
+            //     yAverageDirection += theta;
+            // }
 
 	        line(warpedImg,pt1,pt2,Scalar(0,0,255),2,LINE_AA);
 
@@ -293,8 +327,8 @@ int main(int argc, char **argv)
         
         imshow("hough lines",warpedImg);
 
-        xAverageDirection = xAverageDirection / double(xCountOfAverage);// from -15 deg to 170 deg (using radian)
-        yAverageDirection = yAverageDirection / double(yCountOfAverage);
+        // xAverageDirection = xAverageDirection / double(xCountOfAverage);// from -15 deg to 170 deg (using radian)
+        // yAverageDirection = yAverageDirection / double(yCountOfAverage);
         
 
         //trying to find the fitest grid by using traversal
@@ -379,103 +413,106 @@ int main(int argc, char **argv)
 
 
 
-        //here, i have the rho and theta of one x and one y axis
-        // cos(xtheta) = a1 sin(xtheta) = b1 
-        // cos y         a2 sin y         b2
-        //xAverageDirection yAverageDirection
-        // xRho yRho
-        //get cross point
-        int crossExists[8][8];
-        int crossPosition[8][8][2];//0-x 1-y
-        std::vector<Point>cellFlag;
-        memset(crossExists,0,sizeof(crossExists));
-        memset(crossPosition,0,sizeof(crossPosition));
+        // //here, i have the rho and theta of one x and one y axis
+        // // cos(xtheta) = a1 sin(xtheta) = b1 
+        // // cos y         a2 sin y         b2
+        // //xAverageDirection yAverageDirection
+        // // xRho yRho
+        // //get cross point
+        // int crossExists[8][8];
+        // int crossPosition[8][8][2];//0-x 1-y
+        // std::vector<Point>cellFlag;
+        // memset(crossExists,0,sizeof(crossExists));
+        // memset(crossPosition,0,sizeof(crossPosition));
 
-        for(int i = -2; i <= 2; i++) //traversal different parellel line of x / y to get all the crosses
-        {
-            int xTempRho = xRho + i * 30 * pixelsCntPerCentimeter ;
-            for(int k = -2; k <= 2; k++)
-            {
-                int yTempRho = yRho + i * 30 * pixelsCntPerCentimeter ;
-                float crossX,crossY;
-                crossX = (yTempRho / b2 - xTempRho / b1) / (a2 / b2 - a1 / b1);
-                crossY = ( -a1 / b1) * crossX + xTempRho / b1;
-                if(crossX <= 300 && crossX >= 0 && crossY <= 300 && crossY >= 0)//cross in img
-                {
-                    circle(warpedImg, Point(crossX,crossY), 5, Scalar(0, 255, 0), -1);
-                    crossExists[int(crossX/60)][int(crossY/60)] = 1;
-                    crossPosition[int(crossX/60)][int(crossY/60)][0] = crossX;
-                    cellFlag.push_back(Point(int(crossX/60),int(crossY/60)));
-                    crossPosition[int(crossX/60)][int(crossY/60)][1] = crossY;
+        // for(int i = -2; i <= 2; i++) //traversal different parellel line of x / y to get all the crosses
+        // {
+        //     int xTempRho = xRho + i * 30 * pixelsCntPerCentimeter ;
+        //     for(int k = -2; k <= 2; k++)
+        //     {
+        //         int yTempRho = yRho + i * 30 * pixelsCntPerCentimeter ;
+        //         float crossX,crossY;
+        //         crossX = (yTempRho / b2 - xTempRho / b1) / (a2 / b2 - a1 / b1);
+        //         crossY = ( -a1 / b1) * crossX + xTempRho / b1;
+        //         if(crossX <= 300 && crossX >= 0 && crossY <= 300 && crossY >= 0)//cross in img
+        //         {
+        //             circle(warpedImg, Point(crossX,crossY), 5, Scalar(0, 255, 0), -1);
+        //             crossExists[int(crossX/60)][int(crossY/60)] = 1;
+        //             crossPosition[int(crossX/60)][int(crossY/60)][0] = crossX;
+        //             cellFlag.push_back(Point(int(crossX/60),int(crossY/60)));
+        //             crossPosition[int(crossX/60)][int(crossY/60)][1] = crossY;
 
-                }
+        //         }
                 
 
 
-            }
-        }
-        //most of this is written late in the night. forgive me for the sh*t-like code
-        int crossCnt = 0;
-        double previousLine[2][2]; 
-        double currentLine[2][2];
-        int pointCnt = 0;
-        for(int i = 0;i < cellFlag.size();i++)
-        {
-            int tempX = cellFlag[i].x;
-            int tempY = cellFlag[i].y;
-            for(int i2 = -1 ; i2 <= 1; i2++)
-            {
-                for(int i3 = -1;i3 <= 1;i3++)
-                {
-                    if(previousCrossExists[tempX + i2][tempY + i3] == 1
-                        && (pow(previousCrossPosition[tempX + i2][tempY + i3][0] 
-                        - crossPosition[tempX][tempY][0],2) 
-                        + pow(previousCrossPosition[tempX + i2][tempY + i3][1] 
-                        - crossPosition[tempX][tempY][1],2))
-                        <= pow(10 * pixelsCntPerCentimeter, 2) )//if two point matches(between previous frame and current)
-                    {
-                        i2 = 2; i3 = 2;
-                        previousLine[pointCnt][0] = previousCrossPosition[tempX + i2][tempY + i3][0];
-                        previousLine[pointCnt][1] = previousCrossPosition[tempX + i2][tempY + i3][1];
-                        currentLine[pointCnt][0] = crossPosition[tempX + i2][tempY + i3][0];
-                        currentLine[pointCnt][1] = crossPosition[tempX + i2][tempY + i3][1];
-                        pointCnt++;
-                        if(pointCnt >= 2) i = cellFlag.size()+1;
-                    }
+        //     }
+        // }
+        // //most of this is written late in the night. forgive me for the sh*t-like code
+        // int crossCnt = 0;
+        // double previousLine[2][2]; 
+        // double currentLine[2][2];
+        // int pointCnt = 0;
+        // for(int i = 0;i < cellFlag.size();i++)
+        // {
+        //     int tempX = cellFlag[i].x;
+        //     int tempY = cellFlag[i].y;
+        //     for(int i2 = -1 ; i2 <= 1; i2++)
+        //     {
+        //         for(int i3 = -1;i3 <= 1;i3++)
+        //         {
+        //             if(previousCrossExists[tempX + i2][tempY + i3] == 1
+        //                 && (pow(previousCrossPosition[tempX + i2][tempY + i3][0] 
+        //                 - crossPosition[tempX][tempY][0],2) 
+        //                 + pow(previousCrossPosition[tempX + i2][tempY + i3][1] 
+        //                 - crossPosition[tempX][tempY][1],2))
+        //                 <= pow(10 * pixelsCntPerCentimeter, 2) )//if two point matches(between previous frame and current)
+        //             {
+        //                 i2 = 2; i3 = 2;
+        //                 previousLine[pointCnt][0] = previousCrossPosition[tempX + i2][tempY + i3][0];
+        //                 previousLine[pointCnt][1] = previousCrossPosition[tempX + i2][tempY + i3][1];
+        //                 currentLine[pointCnt][0] = crossPosition[tempX + i2][tempY + i3][0];
+        //                 currentLine[pointCnt][1] = crossPosition[tempX + i2][tempY + i3][1];
+        //                 pointCnt++;
+        //                 if(pointCnt >= 2) i = cellFlag.size()+1;
+        //             }
 
-                }
-            }
-        }
-        //now i have two point in two frame respectively
-        // i have to calculate the change between two frame.
-        // i can see i m gonna to success!
-        double previousTheta = atan2(previousLine[0][1]-previousLine[1][1],
-                                    previousLine[0][0]-previousLine[1][0]);
-        double currentTheta = atan2(currentLine[0][1]-currentLine[1][1],
-                                    currentLine[0][0]-currentLine[1][0]);
-        double deltaTheta_ = currentTheta - previousTheta;
-        robotGlobalDirection += deltaTheta_;
-        double rCurrentPoint1 = sqrt(pow(currentLine[0][0],2) + pow(currentLine[0][1],2));
-        double point1Theta = - deltaTheta_ + atan2(currentLine[0][1],currentLine[0][0]);
-        double transformedX = cos(point1Theta) * rCurrentPoint1;
-        double transformedY = sin(point1Theta) * rCurrentPoint1;
-        robotGlobalX += - (transformedX - previousLine[0][0]);
-        robotGlobalY += - (transformedY - previousLine[0][1]);
+        //         }
+        //     }
+        // }
+        // //now i have two point in two frame respectively
+        // // i have to calculate the change between two frame.
+        // // i can see i m gonna to success!
+        // double previousTheta = atan2(previousLine[0][1]-previousLine[1][1],
+        //                             previousLine[0][0]-previousLine[1][0]);
+        // double currentTheta = atan2(currentLine[0][1]-currentLine[1][1],
+        //                             currentLine[0][0]-currentLine[1][0]);
+        // double deltaTheta_ = currentTheta - previousTheta;
+        // robotGlobalDirection += deltaTheta_;
+        // double rCurrentPoint1 = sqrt(pow(currentLine[0][0],2) + pow(currentLine[0][1],2));
+        // double point1Theta = - deltaTheta_ + atan2(currentLine[0][1],currentLine[0][0]);
+        // double transformedX = cos(point1Theta) * rCurrentPoint1;
+        // double transformedY = sin(point1Theta) * rCurrentPoint1;
+        // robotGlobalX += - (transformedX - previousLine[0][0]);
+        // robotGlobalY += - (transformedY - previousLine[0][1]);
         
-        //reset
-        //std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
-        for(int i = 0; i <= 7; i++)
-        {
-            for(int i2 = 0; i2 <= 7; i2++)
-            {
-                previousCrossExists[i][i2] = crossExists[i][i2];
-               previousCrossPosition[i][i2][0] = crossPosition[i][i2][0];
-               previousCrossPosition[i][i2][1] = crossPosition[i][i2][1];
-            }
-        }            
+        // //reset
+        // //std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
+        // for(int i = 0; i <= 7; i++)
+        // {
+        //     for(int i2 = 0; i2 <= 7; i2++)
+        //     {
+        //         previousCrossExists[i][i2] = crossExists[i][i2];
+        //        previousCrossPosition[i][i2][0] = crossPosition[i][i2][0];
+        //        previousCrossPosition[i][i2][1] = crossPosition[i][i2][1];
+        //     }
+        // }            
 
         //memcpy(previousCrossExists,crossExists,sizeof(crossExists));
         //memcpy(previousCrossPosition,crossPosition,sizeof(crossPosition));
+        
+        
+        
         std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
                  <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
         //std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
