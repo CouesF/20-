@@ -466,8 +466,8 @@ int main(int argc, char **argv)
         //std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
          //        <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
         std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
-        //xDirectionOfPreviousFrame = xAverageDirection;
-        //yDirectionOfPreviousFrame = yAverageDirection;
+        xDirectionOfPreviousFrame = xAverageDirection;
+        yDirectionOfPreviousFrame = yAverageDirection;
         
         imshow("gridLines",warpedImg);
 
