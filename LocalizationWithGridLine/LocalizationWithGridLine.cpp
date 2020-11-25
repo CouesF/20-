@@ -241,7 +241,7 @@ int main(int argc, char **argv)
         
         //debug data
         std::ofstream outfile;
-        outfile.open("/home/pi/degreeData",std::ios::out | std::ios::app);
+        outfile.open("/home/pi/data",std::ios::out | std::ios::app);
 
 
 
@@ -286,50 +286,24 @@ int main(int argc, char **argv)
                     deltaThetaYSum += deltaThetaY;
                     yDirCnt++;
                 }
-                averageDeltaX = deltaThetaXSum / double(xDirCnt);
-                averageDeltaY = deltaThetaYSum / double(yDirCnt);
-                xAverageDirection = xDirectionOfPreviousFrame + averageDeltaX;
-                yAverageDirection = yDirectionOfPreviousFrame + averageDeltaY;
-                if(xAverageDirection > CV_PI) xAverageDirection -= CV_PI;
-                else if(xAverageDirection < 0) xAverageDirection += CV_PI;
-                if(yAverageDirection > CV_PI) yAverageDirection -= CV_PI;
-                else if(yAverageDirection < 0) yAverageDirection += CV_PI;
-
-                
             }
-            // if(abs(sin(theta - xDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
-	        // {
-            //     if((xDirectionOfPreviousFrame < rotationThreshold || xDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
-            //     {
-            //         theta -= CV_PI;
-            //         rho = - rho;
-            //     }
-            //     gaussianSum(rho,0);
-            //     xCountOfAverage++;
-            //     xAverageDirection += theta;
-            // }
-            // else if(abs(sin(theta - yDirectionOfPreviousFrame)) < sin(rotationThreshold))//delta from previous frame 
-	        // {
-            //     if((yDirectionOfPreviousFrame < rotationThreshold || yDirectionOfPreviousFrame > CV_PI - rotationThreshold) && theta > CV_PI / 1.5)
-            //     {
-            //         theta -= CV_PI;
-            //         rho = - rho;
-            //     }
-            //     gaussianSum(rho,1);
-            //     yCountOfAverage++;
-            //     yAverageDirection += theta;
-            // }
-
 	        line(warpedImg,pt1,pt2,Scalar(0,0,255),2,LINE_AA);
-
         }
+
+        //(with former part)calculate current angle of x and y in img [0,pi)
+        averageDeltaX = deltaThetaXSum / double(xDirCnt);
+        averageDeltaY = deltaThetaYSum / double(yDirCnt);
+        xAverageDirection = xDirectionOfPreviousFrame + averageDeltaX;
+        yAverageDirection = yDirectionOfPreviousFrame + averageDeltaY;
+        if(xAverageDirection > CV_PI) xAverageDirection -= CV_PI;
+        else if(xAverageDirection < 0) xAverageDirection += CV_PI;
+        if(yAverageDirection > CV_PI) yAverageDirection -= CV_PI;
+        else if(yAverageDirection < 0) yAverageDirection += CV_PI;
 
         
         imshow("hough lines",warpedImg);
 
-        // xAverageDirection = xAverageDirection / double(xCountOfAverage);// from -15 deg to 170 deg (using radian)
-        // yAverageDirection = yAverageDirection / double(yCountOfAverage);
-        
+
 
         //trying to find the fitest grid by using traversal
         int xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
@@ -513,8 +487,8 @@ int main(int argc, char **argv)
         
         
         
-        std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
-                 <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
+        //std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
+        //         <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
         //std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
         xDirectionOfPreviousFrame = xAverageDirection;
         yDirectionOfPreviousFrame = yAverageDirection;
