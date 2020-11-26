@@ -212,7 +212,7 @@ int main(int argc, char **argv)
     while (ros::ok())
     {
 	    //get the stream and cut the im
-        //for(int i = 1;i <= 1;i++)
+        for(int i = 1;i <= 1;i++)
             cap.grab();
         //while(cap.grab()){}
         cap >> originImg;
@@ -357,14 +357,19 @@ int main(int argc, char **argv)
         
         //process the rho using robot Dir
         int Dir = robotGlobalDirection;
+        int dirStatus = robotDirectionClassification(Dir);
         if(ambiguousX[0]==1&&ambiguousX[1]==1&&ambiguousX[2]==1)
-            Dir = CV_PI/2.0;
+        {
+            dirStatus = 5;
+        }
         if(ambiguousY[0]==1&&ambiguousY[1]==1&&ambiguousY[2]==1)
-            Dir = -CV_PI/2.0;
+        {
+            dirStatus = 6;
+        }
         for(int i = 0; i < xDirCnt; i++)
         {
             int rho = rhoOfX[i];
-            switch (robotDirectionClassification(Dir))
+            switch (dirStatus)
             {
             case 1:
                 break;
@@ -376,9 +381,11 @@ int main(int argc, char **argv)
             case 4:
                 break;
             case 5:
+                if(abs(robotGlobalDirection) < CV_PI / 10.0)
+                    if(rho>0)rho = -rho;
                 break;
             case 6:
-                if(robotGlobalDirection > 0) rho = -rho;
+                if(robotGlobalDirection > 0)rho = -rho;
                 else ;
             default:
                 break;
@@ -389,7 +396,7 @@ int main(int argc, char **argv)
         for(int i = 0; i < yDirCnt; i++)
         {
             int rho = rhoOfY[i];
-            switch (robotDirectionClassification(Dir))
+            switch (dirStatus)
             {
             case 1:
                 /* code */
@@ -405,13 +412,15 @@ int main(int argc, char **argv)
                 break;
             case 5:
                 if(abs(robotGlobalDirection) < CV_PI / 10.0)
-                    if(rho>0)rho = -rho;
+                    if(rho > 0)rho = -rho;
                 break;
             case 6:
-                if(robotGlobalDirection > 0)
+                if(robotGlobalDirection > 0);
+                else
+                {
                     if(rho > 0) rho = -rho;
-                else ;
-            default:
+                }
+             default:
                 break;
             }
             gaussianSum(rho,1);
@@ -455,10 +464,10 @@ int main(int argc, char **argv)
         
         //calculate robot global position
         double deltaX = xRho - xPreviousRho,deltaY = yRho - yPreviousRho;
-        if(deltaX < -75) xGlobal++;
-        else if(deltaX > 75) xGlobal--;
-        if(deltaY < -75) yGlobal++;
-        else if(delta > 75) yGlobal--;
+        if(deltaX < -60) yGlobal++;
+        else if(deltaX > 60) yGlobal--;
+        if(deltaY < -60) xGlobal++;
+        else if(deltaY > 60) xGlobal--;
         //draw grid lines
         Point pt1, pt2;
         double a1,b1,x0,y0,a2,b2;
@@ -613,7 +622,7 @@ int main(int argc, char **argv)
         //          <<"  yRho: "<< yRho <<<< std::endl;
         //std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
         std::cout<< "  x  " << xGlobal <<"  y  "<<yGlobal;
-        std<<cout<<"  bot dir  " << robotGlobalDirection ;
+        std::cout<<"  bot dir  " << robotGlobalDirection ;
         std::cout<<std::endl;
         xDirectionOfPreviousFrame = xAverageDirection;
         yDirectionOfPreviousFrame = yAverageDirection;
