@@ -90,7 +90,34 @@ float getAngelOfTwoVector(Point2f &pt1, Point2f &pt2, Point2f &c)
 	//theta = theta * 180.0 / CV_PI;
 	return theta;
 }
-
+unsigned int robotDirectionClassification(double dir)
+{
+    if(dir == CV_PI / 2.0) return 5;
+    if(dir == -CV_PI / 2.0) return 6;
+    if(dir > 0)
+    {
+        if(dir < CV_PI && dir > CV_PI / 2.0)
+        {
+            return 4;
+        }
+        else if(dir < CV_PI /2.0)
+        {
+            return 3;
+        }
+    }
+    else
+    {
+        if(dir < -CV_PI / 2.0 && dir > -CV_PI)
+        {
+            return 1;
+        }
+        else if(dir > -CV_PI / 2.0)
+        {
+            return 2;
+        }
+        
+    }
+}
 
 int main(int argc, char **argv)
 {
@@ -320,30 +347,83 @@ int main(int argc, char **argv)
         else if(xAverageDirection < 0) xAverageDirection += CV_PI;
         if(yAverageDirection > CV_PI) yAverageDirection -= CV_PI;
         else if(yAverageDirection < 0) yAverageDirection += CV_PI;
+        //get robot direction
+        if(abs(xAverageDirection - xDirectionOfPreviousFrame) < rotationThreshold) 
+            robotGlobalDirection += ((double)xAverageDirection- (double)xDirectionOfPreviousFrame);
+        else 
+            robotGlobalDirection += ((double)yAverageDirection - (double)yDirectionOfPreviousFrame);
+        if(robotGlobalDirection > CV_PI)robotGlobalDirection -= 2*CV_PI;
+        else if( robotGlobalDirection <-CV_PI)robotGlobalDirection += 2*CV_PI;
         
+        //process the rho using robot Dir
+        int Dir = robotGlobalDirection;
+        if(ambiguousX[0]==1&&ambiguousX[1]==1&&ambiguousX[2]==1)
+            Dir = CV_PI/2.0;
+        if(ambiguousY[0]==1&&ambiguousY[1]==1&&ambiguousY[2]==1)
+            Dir = -CV_PI/2.0;
         for(int i = 0; i < xDirCnt; i++)
         {
             int rho = rhoOfX[i];
-            if(ambiguousX[0]==1&&ambiguousX[1]==1&&ambiguousX[2]==1)
+            switch (robotDirectionClassification(Dir))
             {
-                if(rho<0)rho = -rho;
+            case 1:
+                break;
+            case 2:
+                break;
+            case 3:
+                rho = -rho;
+                break;
+            case 4:
+                break;
+            case 5:
+                break;
+            case 6:
+                if(robotGlobalDirection > 0) rho = -rho;
+                else ;
+            default:
+                break;
             }
+            
             gaussianSum(rho,0);
         }
         for(int i = 0; i < yDirCnt; i++)
         {
             int rho = rhoOfY[i];
-            if(ambiguousY[0]==1&&ambiguousY[1]==1&&ambiguousY[2]==1)
+            switch (robotDirectionClassification(Dir))
             {
-                if(rho<0)rho = -rho;
+            case 1:
+                /* code */
+                break;
+            case 2:
+                rho = -rho;
+                break;
+            case 3:
+                rho = -rho;
+                break;
+            case 4:
+                /* code */
+                break;
+            case 5:
+                if(abs(robotGlobalDirection) < CV_PI / 10.0)
+                    if(rho>0)rho = -rho;
+                break;
+            case 6:
+                if(robotGlobalDirection > 0)
+                    if(rho > 0) rho = -rho;
+                else ;
+            default:
+                break;
             }
             gaussianSum(rho,1);
         }
+
+
         imshow("hough lines",warpedImg);
 
 
 
         //trying to find the fitest grid by using traversal
+        // output xRho yRho
         int xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
         for(int i = maxLensInImg; i <= maxLensInImg + pixelsCntPerCentimeter * 29 ; i += 3)
         {
@@ -355,7 +435,6 @@ int main(int argc, char **argv)
                 {
                     xSumValue += xGridLinesFitting[k + j - 5];
                     xSumValue += abs(xGridLinesFitting[2 * i - k + j - 5]);
-                    //std::cout<<xGridLinesFitting[2*i-k+j-5]<<"   grid  \n";
                     ySumValue += yGridLinesFitting[k + j - 5];
                     ySumValue += yGridLinesFitting[2 * i - k + j - 5];
                 }
@@ -373,8 +452,14 @@ int main(int argc, char **argv)
             }
         }
         //std::cout<<"xrho "<<xRho<<"\n\n";
+        
+        //calculate robot global position
+        double deltaX = xRho - xPreviousRho,deltaY = yRho - yPreviousRho;
+        if(deltaX < -75) xGlobal++;
+        else if(deltaX > 75) xGlobal--;
+        if(deltaY < -75) yGlobal++;
+        else if(delta > 75) yGlobal--;
         //draw grid lines
-
         Point pt1, pt2;
         double a1,b1,x0,y0,a2,b2;
         a1 = cos(xAverageDirection), b1 = sin(xAverageDirection);
@@ -523,18 +608,17 @@ int main(int argc, char **argv)
         //memcpy(previousCrossExists,crossExists,sizeof(crossExists));
         //memcpy(previousCrossPosition,crossPosition,sizeof(crossPosition));
         
-        if(abs(xAverageDirection - xDirectionOfPreviousFrame) < rotationThreshold) 
-            robotGlobalDirection += ((double)xAverageDirection- (double)xDirectionOfPreviousFrame);
-        else 
-            robotGlobalDirection += ((double)yAverageDirection - (double)yDirectionOfPreviousFrame);
-        if(robotGlobalDirection > CV_PI)robotGlobalDirection -= 2*CV_PI;
-        else if( robotGlobalDirection <-CV_PI)robotGlobalDirection += 2*CV_PI;
-        std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
-                 <<"  yRho: "<< yRho <<" bot dir: " << robotGlobalDirection << std::endl;
+       
+        // std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
+        //          <<"  yRho: "<< yRho <<<< std::endl;
         //std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
+        std::cout<< "  x  " << xGlobal <<"  y  "<<yGlobal;
+        std<<cout<<"  bot dir  " << robotGlobalDirection ;
+        std::cout<<std::endl;
         xDirectionOfPreviousFrame = xAverageDirection;
         yDirectionOfPreviousFrame = yAverageDirection;
-        
+        xPreviousRho = xRho;
+        yPreviousRho = yRho;
         imshow("gridLines",warpedImg);
 
 	    waitKey(1);
