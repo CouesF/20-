@@ -25,20 +25,21 @@ Create Topic: RobotPositionInfo
 #define imgHeight 360
 #define imgWidthCut 640
 #define imgHeightCut 210
-#define warpedWidth 382
-#define warpedHeight 315
+#define warpedWidth 382 * photoReductionScale
+#define warpedHeight 315 * photoReductionScale
 #define loopRate 30 // whole loop rate
-#define imgPartitionSize 60//(pixels) divide the img into areas. make sure each part has only one cross
+#define imgPartitionSize 60 * photoReductionScale//(pixels) divide the img into areas. make sure each part has only one cross
 #define gaussianBlurSize 11
-#define pixelsCntPerCentimeter 3.33//DONE: 100p = 30cm
+#define pixelsCntPerCentimeter 3.33  * photoReductionScale//DONE: 100p = 30cm
 #define houghLineThreshold pixelsCntPerCentimeter*20.0
 #define rotationThreshold (double)(25.0/180.0*CV_PI)
-#define maxLensInImg (double)(sqrt(pow(warpedWidth,2)+pow(warpedHeight,2)) + 4.0)
+#define maxLensInImg (double)(sqrt(pow(warpedWidth ,2)+pow(warpedHeight,2)) + 4.0)
 #define currentFrame 1
 #define previousFrame 0
-#define areaXCount imgWidth/imgPartitionSize+3
+#define areaXCount imgWidth/imgPartitionSize+3//TODO:?????????
 #define areaYCount imgWidth/imgPartitionSize+3
 #define gaussianSumMax 800//used for debug draw on canvas
+#define photoReductionScale 0.5 
 
 using namespace cv;
 
@@ -79,17 +80,6 @@ void gaussianSum(int pixelPosition,int k)// TODO:rewrite using array
     }
 }
 
-float getAngelOfTwoVector(Point2f &pt1, Point2f &pt2, Point2f &c)
-{
-	float theta = atan2(pt1.x - c.x, pt1.y - c.y) - atan2(pt2.x - c.x, pt2.y - c.y);
-	if (theta > CV_PI)
-		theta -= 2 * CV_PI;
-	if (theta < -CV_PI)
-		theta += 2 * CV_PI;
- 
-	//theta = theta * 180.0 / CV_PI;
-	return theta;
-}
 unsigned int robotDirectionClassification(double dir)
 {
     if(dir == CV_PI / 2.0) return 5;
@@ -144,33 +134,6 @@ int main(int argc, char **argv)
 
     int xRho,yRho,xPreviousRho = 0,yPreviousRho = 0;
 
-    //TODO: initial the point
-    int previousCrossExists[8][8];//6*6means devide the img into 6*6 cells
-    memset(previousCrossExists,0,sizeof(previousCrossExists));
-    double previousCrossPosition[8][8][2];//0-x 1-y
-    previousCrossExists[1][1] = 1;
-    previousCrossExists[2][1] = 1;
-    previousCrossExists[4][1] = 1;
-    previousCrossExists[1][2] = 1;
-    previousCrossExists[1][4] = 1;
-    previousCrossExists[2][2] = 1;
-    previousCrossExists[4][4] = 1;
-    previousCrossPosition[1][1][0] = 10;
-    previousCrossPosition[1][1][1] = 10;
-    previousCrossPosition[2][1][0] = 110;
-    previousCrossPosition[2][1][1] = 10;
-    previousCrossPosition[4][1][0] = 210;
-    previousCrossPosition[4][1][1] = 10;
-    previousCrossPosition[1][2][0] = 10;
-    previousCrossPosition[1][2][1] = 110;
-    previousCrossPosition[1][4][0] = 10;
-    previousCrossPosition[1][4][1] = 210;
-    previousCrossPosition[2][2][0] = 110;
-    previousCrossPosition[2][2][1] = 110;
-    previousCrossPosition[4][4][0] = 210;
-    previousCrossPosition[4][4][1] = 210;
-    
-
 
     // cap initialization and setting
     cap.open(0);
@@ -182,8 +145,8 @@ int main(int argc, char **argv)
     }
     system("v4l2-ctl -d /dev/video0 -c exposure_auto=1");
     system("v4l2-ctl -d /dev/video0 -c exposure_absolute=78");//minimum is 78
-    system("v4l2-ctl -d /dev/video0 -c brightness=60");//minimum is 78
-    system("v4l2-ctl -d /dev/video0 -c contrast=30");//minimum is 78
+    system("v4l2-ctl -d /dev/video0 -c brightness=60");
+    system("v4l2-ctl -d /dev/video0 -c contrast=30");
     std::cout<<"default exposure: "<<cap.get(CAP_PROP_EXPOSURE)<<std::endl;
     std::cout<<"default contrast: "<<cap.get(CAP_PROP_CONTRAST)<<std::endl;
     std::cout<<"default brightne: "<<cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
@@ -219,10 +182,10 @@ int main(int argc, char **argv)
 	    
         //Transform perspective
         Mat lambda = getPerspectiveTransform(perspectiveTransformOriginPoint,perspectiveTransformWarpedPointa);
-        warpPerspective(originImg,warpedImg,lambda, Size(320,300),INTER_LINEAR);
+        warpPerspective(originImg,warpedImg,lambda, Size(320 * photoReductionScale,300 * photoReductionScale),INTER_LINEAR);
 
-	    //1line(warpedImg,Point(30,30),Point(130,30),Scalar(0,0,255),2,LINE_AA);
-        //imshow("warpedImg",warpedImg);
+	    line(warpedImg,Point(30,30),Point(80,30),Scalar(0,0,255),2,LINE_AA);
+        imshow("warpedImg",warpedImg);
         
         
         //Rect rect(0,0,imgWidthCut,imgHeightCut);
@@ -250,7 +213,7 @@ int main(int argc, char **argv)
 	    GaussianBlur(warpedGrayImg,warpedGrayImg,Size(gaussianBlurSize,gaussianBlurSize),0);
         //imshow("GaussialBlur",warpedGrayImg);
         Canny(warpedGrayImg,warpedGrayImg,cannyMinThreshold,cannyMaxThreshold,3);
-        //imshow("canny",warpedGrayImg);
+        imshow("canny",warpedGrayImg);
 	    std::vector<Vec2f>lines;
 	    HoughLines(warpedGrayImg,lines,1,CV_PI/180,houghLineThreshold,0,0);
 	
@@ -438,9 +401,9 @@ int main(int argc, char **argv)
         {
             //int tempPos = i + maxLensInImg;
             int xSumValue = 0, ySumValue = 0;
-            for(int k = i; k <= maxLensInImg * 2 + 9 ; k+= 100)//100 pixels = 30cm = 1 square
+            for(int k = i; k <= maxLensInImg * 2 + 9 ; k+= pixelsCntPerCentimeter * 30)//100 pixels = 30cm = 1 square
             {
-                for( int j = 1; j <= 9; j++)
+                for( int j = 1; j <= 9 * photoReductionScale; j++)
                 {
                     xSumValue += xGridLinesFitting[k + j - 5];
                     xSumValue += abs(xGridLinesFitting[2 * i - k + j - 5]);
@@ -464,10 +427,10 @@ int main(int argc, char **argv)
         
         //calculate robot global position
         double deltaX = xRho - xPreviousRho,deltaY = yRho - yPreviousRho;
-        if(deltaX < -60) yGlobal++;
-        else if(deltaX > 60) yGlobal--;
-        if(deltaY < -60) xGlobal++;
-        else if(deltaY > 60) xGlobal--;
+        if(deltaX < -60 * photoReductionScale) yGlobal++;
+        else if(deltaX > 60* photoReductionScale) yGlobal--;
+        if(deltaY < -60* photoReductionScale) xGlobal++;
+        else if(deltaY > 60* photoReductionScale) xGlobal--;
         //draw grid lines
         Point pt1, pt2;
         double a1,b1,x0,y0,a2,b2;
