@@ -44,9 +44,9 @@ int cutX1 = 10,
     cutX2 = 300, 
     cutY2 = 300;
 
+using namespace cv;
 Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
 
-using namespace cv;
 
 //TODO: IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
 
@@ -58,28 +58,34 @@ Point circleCentralPointDetection(Mat img)
     cvtColor(croppedImg,grayImg,COLOR_RGB2GRAY);
     medianBlur(grayImg,blurredImg,3);
     std::vector<Vec3f>circles;
-    cannyMaxThreshold = min(200,(int)(threshold(blurredImg,mThres_Gray,0,255,THRESH_OTSU)));
-    HoughCircles(blurredImg,circles,HOUGH_GRADIENT,1,0,cannyMaxThreshold,80,120)//TODO: the last 2 paras is the min & max radius of circle
+    unsigned int cannyMaxThreshold = min(200,(int)(threshold(blurredImg,mThres_Gray,0,255,THRESH_OTSU)));
+    HoughCircles(blurredImg,circles,HOUGH_GRADIENT,1,100,cannyMaxThreshold,40,60);//TODO: the last 2 paras is the min & max radius of circle
     Mat centerCanvas(cutX2 - cutX1 , cutY2 - cutY1,CV_8UC1,Scalar(0));
+    std::cout << circles.size() << std::endl;
     for(size_t i = 0; i < circles.size(); i++)
     {
         Vec3i c = circles[i];
         Point center = Point(c[0],c[1]);
-        uchar *rowData = centerCanvas.ptr<uchar>(c[0]);
-        rowData[c[1]] = Scalar(255);
+	std::cout << "x  " << c[0] <<"  y " << c[1]<<std::endl;
+    	circle(croppedImg,center,c[2],(255,0,255),0);
+    	circle(centerCanvas,center,3,(255,255,255),-1);
+        //centerCanvas.at<int>(c[1],c[0]) = 255;
+	//uchar *rowData = centerCanvas.ptr<uchar>(c[0]);
+        //rowData[c[1]] = 255;
         //int x = circles[i]
     }
+   circle(croppedImg,{100,100},40,(255,0,255),0);
     imshow("centerCanvas",centerCanvas);
-    GaussianBlur(centerCanvas,centerCanvas,Size(5,5),0);
+    GaussianBlur(centerCanvas,centerCanvas,Size(9,9),0);
     imshow("blur",centerCanvas);
     double minVal;
     double maxVal;
     Point minIdx;
     Point maxIdx;
     minMaxLoc(centerCanvas,&minVal, &maxVal, &minIdx, &maxIdx);
-    circle(croppedImg,maxIdx,3,(0,0,255),0)
+    circle(croppedImg,maxIdx,3,(0,0,255),0);
     imshow("circleDetect",croppedImg);
-    waitKey(0);
+    waitKey(100);
 
 }
 
@@ -89,7 +95,7 @@ int main(int argc, char **argv)
     VideoCapture cap;
 
     // cap initialization and setting
-    cap.open(0);
+    cap.open("/dev/video0");
     cap.set(CAP_PROP_FRAME_WIDTH,imgWidth);
     cap.set(CAP_PROP_FRAME_HEIGHT,imgHeight);
     if(!cap.isOpened()){ 
@@ -105,20 +111,18 @@ int main(int argc, char **argv)
     std::cout<<"default brightne: "<<cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
     //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
     //imshow("gray",grayImg);
-    if(img.empty()){}
     //undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
     
-    calculateGaussianPara();
    
 
 
 
     //Ros configuration_publisher
-    ros::init(argc,argv, "RobotPositionPublisher");
+    ros::init(argc,argv, "main");
     ros::NodeHandle n;
 
     ros::Publisher PositionPublisher = 
-        n.advertise<std_msgs::String>("RobotPositionInfo", 500);
+        n.advertise<std_msgs::String>("mainStatus", 500);
     ros::Rate loop_rate (loopRate);//max rate is 30 Hz. ImageProcess may slower than it.
 
     
@@ -127,11 +131,12 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
+	Mat img;
+	cap >> img;
+	circleCentralPointDetection(img);
 	    //get the stream and cut the im
         //for(int i = 1;i <= 1;i++)
-            cap.grab();
         //while(cap.grab()){}
-        cap >> originImg;
 
 
     }
