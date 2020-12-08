@@ -40,19 +40,50 @@ Create Topic: RobotPositionInfo
 #define areaYCount imgWidth/imgPartitionSize+3
 #define gaussianSumMax 800//used for debug draw on canvas
 int cutX1 = 10,
-    cutY1 = 10, 
+    cutY1 = 10,     
     cutX2 = 300, 
     cutY2 = 300;
 
 using namespace cv;
 Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
-
+Mat originTemplate;
+Mat temPlates[200];
 
 //TODO: IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
 
-
-Point circleCentralPointDetection(Mat img)
+Mat getHueChanel(Mat originImg)
 {
+    Mat hsvImg;
+    cvtColor(originImg, hsvImg,CV_BGR2HSV);
+    Mat hueChannel;
+    std::vector<Mat> channels;
+    split(hsvImg,channels);
+    return channels[0];//0,1,2 h,s,v
+}
+Point circleCentralPointDetection()
+{
+    VideoCapture cap;
+
+    // cap initialization and setting
+    cap.open("/dev/video0");
+    cap.set(CAP_PROP_FRAME_WIDTH,imgWidth);
+    cap.set(CAP_PROP_FRAME_HEIGHT,imgHeight);
+    cap.set(CV_CAP_PROP_BUFFERSIZE, 2);//only stores 3 frames in cache;
+    if(!cap.isOpened()){ 
+        std::cout << "cam openning failed" << std::endl;
+	return -1;
+    }
+    system("v4l2-ctl -d /dev/video0 -c exposure_auto=1");
+    system("v4l2-ctl -d /dev/video0 -c exposure_absolute=78");//minimum is 78
+    system("v4l2-ctl -d /dev/video0 -c brightness=60");//minimum is 78
+    system("v4l2-ctl -d /dev/video0 -c contrast=30");//minimum is 78
+    std::cout<<"default exposure: "<<cap.get(CAP_PROP_EXPOSURE)<<std::endl;
+    std::cout<<"default contrast: "<<cap.get(CAP_PROP_CONTRAST)<<std::endl;
+    std::cout<<"default brightne: "<<cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
+
+
+
+
     Mat croppedImg = img(imgResize);
     Mat grayImg,blurredImg,mThres_Gray;
     cvtColor(croppedImg,grayImg,COLOR_RGB2GRAY);
@@ -85,31 +116,23 @@ Point circleCentralPointDetection(Mat img)
     minMaxLoc(centerCanvas,&minVal, &maxVal, &minIdx, &maxIdx);
     circle(croppedImg,maxIdx,3,(0,0,255),0);
     imshow("circleDetect",croppedImg);
-    waitKey(100);
-
+    waitKey(0);
+    cap.release();
 }
 
+Point 
+{
+void cv::medianBlur	(	InputArray 	src,
+OutputArray 	dst,
+int 	ksize 
+)		
+
+    img.copyTo( img_display );
+}
 
 int main(int argc, char **argv)
 {
-    VideoCapture cap;
-
-    // cap initialization and setting
-    cap.open("/dev/video0");
-    cap.set(CAP_PROP_FRAME_WIDTH,imgWidth);
-    cap.set(CAP_PROP_FRAME_HEIGHT,imgHeight);
-    if(!cap.isOpened()){ 
-        std::cout << "cam openning failed" << std::endl;
-	return -1;
-    }
-    system("v4l2-ctl -d /dev/video0 -c exposure_auto=1");
-    system("v4l2-ctl -d /dev/video0 -c exposure_absolute=78");//minimum is 78
-    system("v4l2-ctl -d /dev/video0 -c brightness=60");//minimum is 78
-    system("v4l2-ctl -d /dev/video0 -c contrast=30");//minimum is 78
-    std::cout<<"default exposure: "<<cap.get(CAP_PROP_EXPOSURE)<<std::endl;
-    std::cout<<"default contrast: "<<cap.get(CAP_PROP_CONTRAST)<<std::endl;
-    std::cout<<"default brightne: "<<cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
-    //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
+        //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
     //imshow("gray",grayImg);
     //undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
     
@@ -131,9 +154,7 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-	Mat img;
-	cap >> img;
-	circleCentralPointDetection(img);
+	    circleCentralPointDetection();
 	    //get the stream and cut the im
         //for(int i = 1;i <= 1;i++)
         //while(cap.grab()){}
