@@ -45,7 +45,7 @@ int cutX1 = 10,
     cutY2 = 300;
 Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
 
-std::string templateCam("/dev/templateCam"); 
+std::string templateCam("/dev/video0"); 
 std::string blueTemplatePath = "/home/coues/template/blueTemplate.png";
 std::string greenTemplatePath = "/home/coues/template/greenTemplate.png";
 std::string redTemplatePath = "/home/coues/template/redTemplate.png";
@@ -54,7 +54,14 @@ int blueLowH = 100, blueHighH = 124,
     redLowH1 = 0,   redHighH1 = 10, 
     redLowH2 = 156, redHighH2 = 180;
 int LowS = 43, HighS = 255, LowV = 46, HighV = 255;
-
+Scalar blueLow = Scalar(blueLowH,LowS,LowV);
+Scalar greenLow = Scalar(greenLowH,LowS,LowV);
+Scalar redLow1 = Scalar(redLowH1,LowS,LowV);
+Scalar redLow2 = Scalar(redLowH2,LowS,LowV);
+Scalar blueHigh = Scalar(blueHighH,HighS,HighV);
+Scalar greenHigh = Scalar(greenHighH,HighS,HighV);
+Scalar redHigh1 = Scalar(redHighH1,HighS,HighV);
+Scalar redHigh2 = Scalar(redHighH2,HighS,HighV);
 using namespace cv;
 Mat originTemplate;
 Mat temPlates[200];
@@ -134,55 +141,58 @@ Point circleCentralPointDetection()
     cap.release();
 }
 
-Point 
-{
-    medianBlur(src,dst,ksize );		
-    inRange(img,Scalar());
-    img.copyTo( img_display );
-    inRange(frame_HSV, Scalar(low_H, low_S, low_V), Scalar(high_H, high_S, high_V), frame_threshold);
+// Point 
+// {
+//     medianBlur(src,dst,ksize );		
+//     inRange(img,Scalar());
+//     img.copyTo( img_display );
+//     inRange(frame_HSV, Scalar(low_H, low_S, low_V), Scalar(high_H, high_S, high_V), frame_threshold);
 
+// }
+int setCamera(VideoCapture *cap, unsigned int _width, unsigned int _height, unsigned int _buffersize);
+{
+    *cap.set(CAP_PROP_FRAME_WIDTH,_width);
+    *cap.set(CAP_PROP_FRAME_HEIGHT,_height);
+    *cap.set(CV_CAP_PROP_BUFFERSIZE, _buffersize);//only stores (n) frames in cache;
+    string cmd1("v4l2-ctl -d ");
+    string cmd11(" -c exposure_auto=1");
+    string cmd12(" exposure_absolute=78");
+    string cmd13(" brightness=60");
+    string cmd14(" contrast=30");
+    system(cmd1 + templateCam + cmd11);
+    system(cmd1 + templateCam + cmd12);
+    system(cmd1 + templateCam + cmd13);
+    system(cmd1 + templateCam + cmd14);
+
+    std::cout<<"default exposure: "<<*cap.get(CAP_PROP_EXPOSURE)<<std::endl;
+    std::cout<<"default contrast: "<<*cap.get(CAP_PROP_CONTRAST)<<std::endl;
+    std::cout<<"default brightne: "<<*cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
 }
-Point templateMatching()//return the value of x y for robot to move
+Point templateMatching(Mat src)//return the value of x y for robot to move
 {
-    VideoCapture cap;
+    
 
-    // cap initialization and setting
-    cap.open(templateCam);
-    cap.set(CAP_PROP_FRAME_WIDTH,imgWidth);
-    cap.set(CAP_PROP_FRAME_HEIGHT,imgHeight);
-    cap.set(CV_CAP_PROP_BUFFERSIZE, 2);//only stores (n) frames in cache;
-    if(!cap.isOpened()){ 
-        std::cout << "cam openning failed" << std::endl;
-	return -1;
-    }
-
-    {//set camera
-        string cmd1("v4l2-ctl -d ");
-        string cmd11(" -c exposure_auto=1");
-        string cmd12(" exposure_absolute=78");
-        string cmd13(" brightness=60");
-        string cmd14(" contrast=30");
-        system(cmd1 + templateCam + cmd11);
-        system(cmd1 + templateCam + cmd12);
-        system(cmd1 + templateCam + cmd13);
-        system(cmd1 + templateCam + cmd14);
-
-        std::cout<<"default exposure: "<<cap.get(CAP_PROP_EXPOSURE)<<std::endl;
-        std::cout<<"default contrast: "<<cap.get(CAP_PROP_CONTRAST)<<std::endl;
-        std::cout<<"default brightne: "<<cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
-    }
-        
-    Mat src,hsv,hue;
-    cap >> src;
-    Mat croppedImg = img(imgResize);
+    imshow("origin",src);
+    Mat hsv,hue;
+    //Mat croppedImg = img(imgResize);
     medianBlur(src,src,5);
     imshow("medianBlur",src);
     hsv = convertBGR2HSV(src);
     imshow("HSV",hsv);
     hue = getHueChanel(hsv);
     imshow("HueChannel",hue);
-    inRange(hsv,S)
-    cap.release();
+
+    Mat1b blueImg,redImg1,redImg2,redImg,greenImg;
+
+    inRange(hsv, blueLow, blueHigh, blueImg);
+    inRange(hsv, greenLow, greenHigh, greenImg);
+    inRange(hsv, redLow1, redHigh1, redImg1);
+    inRange(hsv, redLow2, redHigh2, redImg2);
+    redImg = redImg1 | redImg2;
+    imshow("redThreshold",redImg);
+    imshow("blueTreshold",blueImg);
+    imshow("blueTreshold",greenImg);
+    waitkey(5);
 }
 
 int main(int argc, char **argv)
@@ -205,11 +215,19 @@ int main(int argc, char **argv)
 
     
 
-    
-
+    VideoCapture cap;
+    // cap initialization and setting
+    cap.open(templateCam);
+    if(!cap.isOpened()){ 
+        std::cout << "cam openning failed" << std::endl;
+	    return -1;
+    }
+    setCamera(&cap, imgWidth, imgHeight, 2);
     while (ros::ok())
     {
-	    circleCentralPointDetection();
+        Mat img;
+        cap >> img;
+	    templateMatching(img);
 	    //get the stream and cut the im
         //for(int i = 1;i <= 1;i++)
         //while(cap.grab()){}
