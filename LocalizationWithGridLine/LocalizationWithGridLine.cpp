@@ -30,7 +30,7 @@ Create Topic: RobotPositionInfo
 #define loopRate 30 // whole loop rate
 #define imgPartitionSize 60 * photoReductionScale//(pixels) divide the img into areas. make sure each part has only one cross
 #define gaussianBlurSize 11
-#define pixelsCntPerCentimeter 3.33  * photoReductionScale - 0.1//DONE: 100p = 30cm//ChangedTo 48p / 30cm
+#define pixelsCntPerCentimeter 3.33  * photoReductionScale//DONE: 100p = 30cm
 #define houghLineThreshold pixelsCntPerCentimeter*20.0
 #define rotationThreshold (double)(25.0/180.0*CV_PI)
 #define maxLensInImg (double)(sqrt(pow(warpedWidth ,2)+pow(warpedHeight,2)) + 4.0)
@@ -50,9 +50,6 @@ Point2f perspectiveTransformWarpedPointa[4] = {Point2f(0,0),Point2f(warpedWidth,
 int xGridLinesFitting[int(maxLensInImg *2 + 20)];
 int yGridLinesFitting[int(maxLensInImg *2 + 20)];
 float gaussianPara[int(pixelsCntPerCentimeter*3+2)];
-
-int cannyMinThreshold,cannyMaxThreshold;
-
 void calculateGaussianPara()
 {
     double para = 1.0/sqrt(2.0*CV_PI);
@@ -111,15 +108,7 @@ unsigned int robotDirectionClassification(double dir)
         
     }
 }
-Mat imgPreprocessing(Mat src)
-{
-    GaussianBlur(src,src,Size(gaussianBlurSize,gaussianBlurSize),0);
-    MedianBlur(src,src,5);
-    imshow("Gaussian+Median Blur",src);
-    Canny(src,src,cannyMinThreshold,cannyMaxThreshold,3);
-    imshow("canny",src);
-    return src;
-}
+
 int main(int argc, char **argv)
 {
     //data type initialize
@@ -129,7 +118,7 @@ int main(int argc, char **argv)
     Mat warpedImg,warpedGrayImg;
 
     short thresholdCnt = 151 ;//used for estimating the threshold value of canny edge detection. to save the resources of calculating while looping
-    
+    int cannyMinThreshold,cannyMaxThreshold;
     VideoCapture cap;
     
     //Localization data
@@ -195,7 +184,7 @@ int main(int argc, char **argv)
         Mat lambda = getPerspectiveTransform(perspectiveTransformOriginPoint,perspectiveTransformWarpedPointa);
         warpPerspective(originImg,warpedImg,lambda, Size(320 * photoReductionScale,300 * photoReductionScale),INTER_LINEAR);
 
-	    //line(warpedImg,Point(30,30),Point(80,30),Scalar(0,0,255),2,LINE_AA);
+	    line(warpedImg,Point(30,30),Point(80,30),Scalar(0,0,255),2,LINE_AA);
         imshow("warpedImg",warpedImg);
         
         
@@ -215,18 +204,19 @@ int main(int argc, char **argv)
             //meanStdDev(img,meanValueOfImg,stdDev);
             //double avg = meanValueOfImg.ptr<double>(0)[0];
 	        Mat mThres_Gray;
-            Scalar tempVal = mean( warpedGrayImg );
-            float matMean = tempVal.val[0];
-            cannyMaxThreshold = min(200,matMean * 0.7);
-            cannyMinThreshold = max(70,matMean * 1.3);
+            cannyMaxThreshold = min(200,(int)(threshold(warpedGrayImg,mThres_Gray,0,255,THRESH_OTSU)));
+            cannyMinThreshold = max(70,(int)(0.3*cannyMaxThreshold));
 	    }
 
 
 	    //Img pre-processing and line detection
-	    warpedGrayImg = imgPreprocessing(warpedGrayImg);
-
+	    GaussianBlur(warpedGrayImg,warpedGrayImg,Size(gaussianBlurSize,gaussianBlurSize),0);
+        //imshow("GaussialBlur",warpedGrayImg);
+        Canny(warpedGrayImg,warpedGrayImg,cannyMinThreshold,cannyMaxThreshold,3);
+        imshow("canny",warpedGrayImg);
 	    std::vector<Vec2f>lines;
 	    HoughLines(warpedGrayImg,lines,1,CV_PI/180,houghLineThreshold,0,0);
+	
 	
 
         //filter the parallel lines of x and y. then add them in to 1D mat using gaussing func

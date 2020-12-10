@@ -43,6 +43,7 @@ int cutX1 = 10,
     cutY1 = 10,     
     cutX2 = 300, 
     cutY2 = 300;
+using namespace cv;
 Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
 
 std::string templateCam("/dev/video0"); 
@@ -62,12 +63,11 @@ Scalar blueHigh = Scalar(blueHighH,HighS,HighV);
 Scalar greenHigh = Scalar(greenHighH,HighS,HighV);
 Scalar redHigh1 = Scalar(redHighH1,HighS,HighV);
 Scalar redHigh2 = Scalar(redHighH2,HighS,HighV);
-using namespace cv;
 Mat originTemplate;
 Mat temPlates[200];
 
 //TODO: IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
-Mat convertBGR2HSV(originImg)
+Mat convertBGR2HSV(Mat originImg)
 {
     Mat hsvImg;
     cvtColor(originImg, hsvImg,CV_BGR2HSV);
@@ -81,64 +81,42 @@ Mat getHueChanel(Mat hsvImg)
     split(hsvImg,channels);
     return channels[0];//0,1,2 h,s,v
 }
-Point circleCentralPointDetection()
+Point circleCentralPointDetection(Mat img)
 {
-    VideoCapture cap;
-
-    // cap initialization and setting
-    cap.open("/dev/video0");
-    cap.set(CAP_PROP_FRAME_WIDTH,imgWidth);
-    cap.set(CAP_PROP_FRAME_HEIGHT,imgHeight);
-    cap.set(CV_CAP_PROP_BUFFERSIZE, 2);//only stores 3 frames in cache;
-    if(!cap.isOpened()){ 
-        std::cout << "cam openning failed" << std::endl;
-	return -1;
-    }
-    system("v4l2-ctl -d /dev/video0 -c exposure_auto=1");
-    system("v4l2-ctl -d /dev/video0 -c exposure_absolute=78");//minimum is 78
-    system("v4l2-ctl -d /dev/video0 -c brightness=60");//minimum is 78
-    system("v4l2-ctl -d /dev/video0 -c contrast=30");//minimum is 78
-    std::cout<<"default exposure: "<<cap.get(CAP_PROP_EXPOSURE)<<std::endl;
-    std::cout<<"default contrast: "<<cap.get(CAP_PROP_CONTRAST)<<std::endl;
-    std::cout<<"default brightne: "<<cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
-
-
-
-
-    Mat croppedImg = img(imgResize);
-    Mat grayImg,blurredImg,mThres_Gray;
-    cvtColor(croppedImg,grayImg,COLOR_RGB2GRAY);
-    medianBlur(grayImg,blurredImg,3);
+    Mat croppedImg = img;// = img(imgResize);
+    Mat grayImg,blurredImg;//,mThres_Gray;
+    //cvtColor(croppedImg,grayImg,COLOR_RGB2GRAY);
+    blurredImg = croppedImg;
+    //medianBlur(grayImg,blurredImg,3);
     std::vector<Vec3f>circles;
-    unsigned int cannyMaxThreshold = min(200,(int)(threshold(blurredImg,mThres_Gray,0,255,THRESH_OTSU)));
-    HoughCircles(blurredImg,circles,HOUGH_GRADIENT,1,100,cannyMaxThreshold,40,60);//TODO: the last 2 paras is the min & max radius of circle
-    Mat centerCanvas(cutX2 - cutX1 , cutY2 - cutY1,CV_8UC1,Scalar(0));
+    //unsigned int cannyMaxThreshold = min(200,(int)(threshold(blurredImg,mThres_Gray,0,255,THRESH_OTSU)));
+    HoughCircles(blurredImg,circles,HOUGH_GRADIENT,1,100,150,40,60);//TODO: the last 2 paras is the min & max radius of circle
+    //Mat centerCanvas(cutX2 - cutX1 , cutY2 - cutY1,CV_8UC1,Scalar(0));
     std::cout << circles.size() << std::endl;
     for(size_t i = 0; i < circles.size(); i++)
     {
         Vec3i c = circles[i];
         Point center = Point(c[0],c[1]);
 	std::cout << "x  " << c[0] <<"  y " << c[1]<<std::endl;
-    	circle(croppedImg,center,c[2],(255,0,255),0);
-    	circle(centerCanvas,center,3,(255,255,255),-1);
+    	circle(croppedImg,center,3,(255),-1);
+    	//circle(centerCanvas,center,3,(255,255,255),-1);
         //centerCanvas.at<int>(c[1],c[0]) = 255;
 	//uchar *rowData = centerCanvas.ptr<uchar>(c[0]);
         //rowData[c[1]] = 255;
         //int x = circles[i]
     }
-   circle(croppedImg,{100,100},40,(255,0,255),0);
-    imshow("centerCanvas",centerCanvas);
-    GaussianBlur(centerCanvas,centerCanvas,Size(9,9),0);
-    imshow("blur",centerCanvas);
+    //circle(croppedImg,{100,100},40,(255,0,255),0);
+    //imshow("centerCanvas",centerCanvas);
+    //GaussianBlur(centerCanvas,centerCanvas,Size(9,9),0);
+    //imshow("blur",centerCanvas);
     double minVal;
     double maxVal;
     Point minIdx;
     Point maxIdx;
-    minMaxLoc(centerCanvas,&minVal, &maxVal, &minIdx, &maxIdx);
-    circle(croppedImg,maxIdx,3,(0,0,255),0);
+    //minMaxLoc(centerCanvas,&minVal, &maxVal, &minIdx, &maxIdx);
+    //circle(croppedImg,maxIdx,3,(0,0,255),0);
     imshow("circleDetect",croppedImg);
-    waitKey(0);
-    cap.release();
+    waitKey(5);
 }
 
 // Point 
@@ -149,24 +127,24 @@ Point circleCentralPointDetection()
 //     inRange(frame_HSV, Scalar(low_H, low_S, low_V), Scalar(high_H, high_S, high_V), frame_threshold);
 
 // }
-int setCamera(VideoCapture *cap, unsigned int _width, unsigned int _height, unsigned int _buffersize);
+int setCamera(VideoCapture *cap, unsigned int _width, unsigned int _height, unsigned int _buffersize)
 {
-    *cap.set(CAP_PROP_FRAME_WIDTH,_width);
-    *cap.set(CAP_PROP_FRAME_HEIGHT,_height);
-    *cap.set(CV_CAP_PROP_BUFFERSIZE, _buffersize);//only stores (n) frames in cache;
-    string cmd1("v4l2-ctl -d ");
-    string cmd11(" -c exposure_auto=1");
-    string cmd12(" exposure_absolute=78");
-    string cmd13(" brightness=60");
-    string cmd14(" contrast=30");
-    system(cmd1 + templateCam + cmd11);
-    system(cmd1 + templateCam + cmd12);
-    system(cmd1 + templateCam + cmd13);
-    system(cmd1 + templateCam + cmd14);
+    (*cap).set(CAP_PROP_FRAME_WIDTH,_width);
+    (*cap).set(CAP_PROP_FRAME_HEIGHT,_height);
+    (*cap).set(CV_CAP_PROP_BUFFERSIZE, _buffersize);//only stores (n) frames in cache;
+    std::string cmd1("v4l2-ctl -d ");
+    std::string cmd11(" -c exposure_auto=1");
+    std::string cmd12(" exposure_absolute=78");
+    std::string cmd13(" brightness=60");
+    std::string cmd14(" contrast=30");
+    system((cmd1 + templateCam + cmd11).c_str());
+    system((cmd1 + templateCam + cmd12).c_str());
+    system((cmd1 + templateCam + cmd13).c_str());
+    system((cmd1 + templateCam + cmd14).c_str());
 
-    std::cout<<"default exposure: "<<*cap.get(CAP_PROP_EXPOSURE)<<std::endl;
-    std::cout<<"default contrast: "<<*cap.get(CAP_PROP_CONTRAST)<<std::endl;
-    std::cout<<"default brightne: "<<*cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
+    std::cout<<"default exposure: "<<(*cap).get(CAP_PROP_EXPOSURE)<<std::endl;
+    std::cout<<"default contrast: "<<(*cap).get(CAP_PROP_CONTRAST)<<std::endl;
+    std::cout<<"default brightne: "<<(*cap).get(CAP_PROP_BRIGHTNESS)<<std::endl;
 }
 Point templateMatching(Mat src)//return the value of x y for robot to move
 {
@@ -175,24 +153,37 @@ Point templateMatching(Mat src)//return the value of x y for robot to move
     imshow("origin",src);
     Mat hsv,hue;
     //Mat croppedImg = img(imgResize);
-    medianBlur(src,src,5);
+    medianBlur(src,src,3);
     imshow("medianBlur",src);
     hsv = convertBGR2HSV(src);
     imshow("HSV",hsv);
     hue = getHueChanel(hsv);
     imshow("HueChannel",hue);
 
-    Mat1b blueImg,redImg1,redImg2,redImg,greenImg;
+    Mat blueImg,redImg1,redImg2,redImg,greenImg;
 
     inRange(hsv, blueLow, blueHigh, blueImg);
     inRange(hsv, greenLow, greenHigh, greenImg);
     inRange(hsv, redLow1, redHigh1, redImg1);
     inRange(hsv, redLow2, redHigh2, redImg2);
     redImg = redImg1 | redImg2;
+   
+    
+    circleCentralPointDetection(redImg);
+
+    imshow("greenTreshold",greenImg);
+    medianBlur(greenImg,greenImg,7);
+    imshow("greenBlurTreshold",greenImg);
+    
     imshow("redThreshold",redImg);
+    medianBlur(redImg,redImg,7);
+    imshow("redBlurThreshold",redImg);
+    
     imshow("blueTreshold",blueImg);
-    imshow("blueTreshold",greenImg);
-    waitkey(5);
+    medianBlur(blueImg,blueImg,7);
+    imshow("blueBlurTreshold",blueImg);
+    
+    waitKey(5);
 }
 
 int main(int argc, char **argv)
