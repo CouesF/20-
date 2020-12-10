@@ -18,7 +18,7 @@ Create Topic: RobotPositionInfo
 #include <vector>
 #include <math.h>
 #include <fstream> //for debug. output to a file
-#include <string.h> // memset
+#include <string> // memset
 
 
 #define imgWidth 640
@@ -43,18 +43,32 @@ int cutX1 = 10,
     cutY1 = 10,     
     cutX2 = 300, 
     cutY2 = 300;
+Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
+
+std::string templateCam("/dev/templateCam"); 
+std::string blueTemplatePath = "/home/coues/template/blueTemplate.png";
+std::string greenTemplatePath = "/home/coues/template/greenTemplate.png";
+std::string redTemplatePath = "/home/coues/template/redTemplate.png";
+int blueLowH = 100, blueHighH = 124, 
+    greenLowH = 35, greenHighH = 77, 
+    redLowH1 = 0,   redHighH1 = 10, 
+    redLowH2 = 156, redHighH2 = 180;
+int LowS = 43, HighS = 255, LowV = 46, HighV = 255;
 
 using namespace cv;
-Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
 Mat originTemplate;
 Mat temPlates[200];
 
 //TODO: IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
-
-Mat getHueChanel(Mat originImg)
+Mat convertBGR2HSV(originImg)
 {
     Mat hsvImg;
     cvtColor(originImg, hsvImg,CV_BGR2HSV);
+    return hsvImg;
+}
+
+Mat getHueChanel(Mat hsvImg)
+{
     Mat hueChannel;
     std::vector<Mat> channels;
     split(hsvImg,channels);
@@ -122,12 +136,53 @@ Point circleCentralPointDetection()
 
 Point 
 {
-void cv::medianBlur	(	InputArray 	src,
-OutputArray 	dst,
-int 	ksize 
-)		
-
+    medianBlur(src,dst,ksize );		
+    inRange(img,Scalar());
     img.copyTo( img_display );
+    inRange(frame_HSV, Scalar(low_H, low_S, low_V), Scalar(high_H, high_S, high_V), frame_threshold);
+
+}
+Point templateMatching()//return the value of x y for robot to move
+{
+    VideoCapture cap;
+
+    // cap initialization and setting
+    cap.open(templateCam);
+    cap.set(CAP_PROP_FRAME_WIDTH,imgWidth);
+    cap.set(CAP_PROP_FRAME_HEIGHT,imgHeight);
+    cap.set(CV_CAP_PROP_BUFFERSIZE, 2);//only stores (n) frames in cache;
+    if(!cap.isOpened()){ 
+        std::cout << "cam openning failed" << std::endl;
+	return -1;
+    }
+
+    {//set camera
+        string cmd1("v4l2-ctl -d ");
+        string cmd11(" -c exposure_auto=1");
+        string cmd12(" exposure_absolute=78");
+        string cmd13(" brightness=60");
+        string cmd14(" contrast=30");
+        system(cmd1 + templateCam + cmd11);
+        system(cmd1 + templateCam + cmd12);
+        system(cmd1 + templateCam + cmd13);
+        system(cmd1 + templateCam + cmd14);
+
+        std::cout<<"default exposure: "<<cap.get(CAP_PROP_EXPOSURE)<<std::endl;
+        std::cout<<"default contrast: "<<cap.get(CAP_PROP_CONTRAST)<<std::endl;
+        std::cout<<"default brightne: "<<cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
+    }
+        
+    Mat src,hsv,hue;
+    cap >> src;
+    Mat croppedImg = img(imgResize);
+    medianBlur(src,src,5);
+    imshow("medianBlur",src);
+    hsv = convertBGR2HSV(src);
+    imshow("HSV",hsv);
+    hue = getHueChanel(hsv);
+    imshow("HueChannel",hue);
+    inRange(hsv,S)
+    cap.release();
 }
 
 int main(int argc, char **argv)
