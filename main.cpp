@@ -118,6 +118,47 @@ Point circleCentralPointDetection(Mat img)
     imshow("circleDetect",croppedImg);
     waitKey(5);
 }
+Point circleCentralPointDetectionBGR(Mat img)
+{
+    Mat croppedImg = img;// = img(imgResize);
+    Mat grayImg,blurredImg,mThres_Gray;
+    cvtColor(croppedImg,grayImg,COLOR_RGB2GRAY);
+    blurredImg = grayImg;//croppedImg;
+    //medianBlur(grayImg,blurredImg,3);
+    std::vector<Vec3f>circles;
+    unsigned int cannyMaxThreshold = 100;//min(200,(int)(threshold(blurredImg,mThres_Gray,0,255,THRESH_OTSU)));
+    HoughCircles(blurredImg,circles,HOUGH_GRADIENT,2,
+		    30,
+		    cannyMaxThreshold,90,90,150);//TODO: the last 2 paras is the min & max radius of circle
+    //Mat centerCanvas(cutX2 - cutX1 , cutY2 - cutY1,CV_8UC1,Scalar(0));
+    std::cout << circles.size() << std::endl;
+    for(size_t i = 0; i < circles.size(); i++)
+    {
+        Vec3i c = circles[i];
+        Point center = Point(c[0],c[1]);
+	std::cout << "x  " << c[0] <<"  y " << c[1]<<std::endl;
+    	circle(croppedImg,center,c[2],(255,0,255),1);
+    	//circle(centerCanvas,center,3,(255,255,255),-1);
+        //centerCanvas.at<int>(c[1],c[0]) = 255;
+	//uchar *rowData = centerCanvas.ptr<uchar>(c[0]);
+        //rowData[c[1]] = 255;
+        //int x = circles[i]
+    }
+    //circle(croppedImg,{100,100},40,(255,0,255),0);
+    //imshow("centerCanvas",centerCanvas);
+    //GaussianBlur(centerCanvas,centerCanvas,Size(9,9),0);
+    //imshow("blur",centerCanvas);
+    double minVal;
+    double maxVal;
+    Point minIdx;
+    Point maxIdx;
+    //minMaxLoc(centerCanvas,&minVal, &maxVal, &minIdx, &maxIdx);
+    //circle(croppedImg,maxIdx,3,(0,0,255),0);
+    imshow("circleDetect",croppedImg);
+    waitKey(5);
+}
+
+
 
 // Point 
 // {
@@ -218,11 +259,12 @@ int main(int argc, char **argv)
     {
         Mat img;
         cap >> img;
-	    templateMatching(img);
+	//    templateMatching(img);
 	    //get the stream and cut the im
         //for(int i = 1;i <= 1;i++)
         //while(cap.grab()){}
 
+	circleCentralPointDetectionBGR(img);
 
     }
 
