@@ -32,7 +32,7 @@ Create Topic: RobotPositionInfo
 #define gaussianBlurSize 11
 #define pixelsCntPerCentimeter 3.33  * photoReductionScale//DONE: 100p = 30cm
 #define houghLineThreshold pixelsCntPerCentimeter*20.0
-#define rotationThreshold (double)(25.0/180.0*CV_PI)
+#define rotationThreshold (double)(18.0/180.0*CV_PI)
 #define maxLensInImg (double)(sqrt(pow(warpedWidth ,2)+pow(warpedHeight,2)) + 4.0)
 #define currentFrame 1
 #define previousFrame 0
@@ -40,9 +40,11 @@ Create Topic: RobotPositionInfo
 #define areaYCount imgWidth/imgPartitionSize+3
 #define gaussianSumMax 800//used for debug draw on canvas
 #define photoReductionScale 0.5 
+#define camBuffersize 10
 
 using namespace cv;
 
+std::string localizationCam("/dev/video0"); 
 //TODO IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
 
 Point2f perspectiveTransformOriginPoint[4] = {Point2f(155,0),Point2f(485,0),Point2f(0,320),Point2f(640,320)};
@@ -108,7 +110,30 @@ unsigned int robotDirectionClassification(double dir)
         
     }
 }
-
+void captureInitializaition(VideoCapture *capture)
+{
+    (*capture).open(localizationCam);
+    (*capture).set(CAP_PROP_FRAME_WIDTH,imgWidth);
+    (*capture).set(CAP_PROP_FRAME_HEIGHT,imgHeight);
+    (*capture).set(CV_CAP_PROP_BUFFERSIZE, camBuffersize);
+    if(!(*capture).isOpened()){ 
+        std::cout << "cam openning failed" << std::endl;
+	return -1;
+    }
+    std::string cmd1("v4l2-ctl -d ");
+    std::string cmd11(" -c exposure_auto=1");
+    std::string cmd12(" exposure_absolute=78");
+    std::string cmd13(" brightness=60");
+    std::string cmd14(" contrast=30");
+    system((cmd1 + localizationCam + cmd11).c_str());
+    system((cmd1 + localizationCam + cmd12).c_str());
+    system((cmd1 + localizationCam + cmd13).c_str());
+    system((cmd1 + localizationCam + cmd14).c_str());
+     std::cout<<"default exposure: "<<(*capture).get(CAP_PROP_EXPOSURE)<<std::endl;
+    std::cout<<"default contrast: "<<(*capture).get(CAP_PROP_CONTRAST)<<std::endl;
+    std::cout<<"default brightne: "<<(*capture).get(CAP_PROP_BRIGHTNESS)<<std::endl;
+    
+}
 int main(int argc, char **argv)
 {
     //data type initialize
@@ -119,7 +144,9 @@ int main(int argc, char **argv)
 
     short thresholdCnt = 151 ;//used for estimating the threshold value of canny edge detection. to save the resources of calculating while looping
     int cannyMinThreshold,cannyMaxThreshold;
+    
     VideoCapture cap;
+    captureInitializaition(&cap);
     
     //Localization data
         //    The first parameter represents the frame order. 0-previous 1-current
@@ -135,24 +162,6 @@ int main(int argc, char **argv)
     int xRho,yRho,xPreviousRho = 0,yPreviousRho = 0;
 
 
-    // cap initialization and setting
-    cap.open(0);
-    cap.set(CAP_PROP_FRAME_WIDTH,imgWidth);
-    cap.set(CAP_PROP_FRAME_HEIGHT,imgHeight);
-    if(!cap.isOpened()){ 
-        std::cout << "cam openning failed" << std::endl;
-	return -1;
-    }
-    system("v4l2-ctl -d /dev/video0 -c exposure_auto=1");
-    system("v4l2-ctl -d /dev/video0 -c exposure_absolute=78");//minimum is 78
-    system("v4l2-ctl -d /dev/video0 -c brightness=60");
-    system("v4l2-ctl -d /dev/video0 -c contrast=30");
-    std::cout<<"default exposure: "<<cap.get(CAP_PROP_EXPOSURE)<<std::endl;
-    std::cout<<"default contrast: "<<cap.get(CAP_PROP_CONTRAST)<<std::endl;
-    std::cout<<"default brightne: "<<cap.get(CAP_PROP_BRIGHTNESS)<<std::endl;
-    //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
-    //imshow("gray",grayImg);
-    if(img.empty()){}
     //undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
     
     calculateGaussianPara();
@@ -174,10 +183,7 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-	    //get the stream and cut the im
-        for(int i = 1;i <= 1;i++)
-            cap.grab();
-        //while(cap.grab()){}
+
         cap >> originImg;
 	    
         //Transform perspective
@@ -191,10 +197,10 @@ int main(int argc, char **argv)
         //Rect rect(0,0,imgWidthCut,imgHeightCut);
 	    //originImg = tempCompleteImg(rect);
 
-
         cvtColor(warpedImg,warpedGrayImg,COLOR_RGB2GRAY);
 
-	
+
+        	
 	
 	    //calculate the canny threshold automatically
 	    thresholdCnt++;
@@ -209,26 +215,32 @@ int main(int argc, char **argv)
 	    }
 
 
-	    //Img pre-processing and line detection
+        //test Median blur
+        Mat testForMedianBlur = warpedGrayImg;
+        medianBlur(testForMedianBlur, testForMedianBlur, 5);
+        canny(testForMedianBlur,testForMedianBlur,cannyMinThreshold,cannyMaxThreshold,3);
+	    imshow("medianCanny",testForMedianBlur);
+
+        //Img pre-processing and 
 	    GaussianBlur(warpedGrayImg,warpedGrayImg,Size(gaussianBlurSize,gaussianBlurSize),0);
-        //imshow("GaussialBlur",warpedGrayImg);
         Canny(warpedGrayImg,warpedGrayImg,cannyMinThreshold,cannyMaxThreshold,3);
-        imshow("canny",warpedGrayImg);
-	    std::vector<Vec2f>lines;
+        imshow("gaussianCanny",warpedGrayImg);
+	    
+
+        //line detection
+        std::vector<Vec2f>lines;
 	    HoughLines(warpedGrayImg,lines,1,CV_PI/180,houghLineThreshold,0,0);
 	
 	
 
         //filter the parallel lines of x and y. then add them in to 1D mat using gaussing func
-        // Mat xGridLinesFitting = Mat::zeros( maxLensInImg + 5,1,CV_32F);//to calculate the fitest grid lines
-        // Mat yGridLinesFitting = Mat::zeros( maxLensInImg + 5,1,CV_32F);//to calculate the fitest grid lines
 	    memset(xGridLinesFitting,0,sizeof(xGridLinesFitting));
         memset(yGridLinesFitting,0,sizeof(yGridLinesFitting));
         double xAverageDirection = 0,yAverageDirection = 0, xCountOfAverage = 0, yCountOfAverage = 0;
         
         
-        //std::cout<<lines.size()<<std::endl;
         
+
         //debug data
         std::ofstream outfile;
         outfile.open("/home/pi/data",std::ios::out | std::ios::app);
@@ -273,7 +285,7 @@ int main(int argc, char **argv)
                 if(deltaThetaY > CV_PI / 2.0) deltaThetaY -= CV_PI;
                 else if (deltaThetaY < - CV_PI / 2.0) deltaThetaY += CV_PI;
                 
-               // if(abs(theta - CV_PI/2.0)  30.0/180.0*CV_PI)
+                //check whether it is parellel to x or y
                 if(abs(deltaThetaX) < rotationThreshold)//it is x line
                 {
 
@@ -283,8 +295,6 @@ int main(int argc, char **argv)
                     if(originTheta < rotationThreshold/1.5 || originTheta > CV_PI - rotationThreshold / 1.5) ambiguousX[2]=1;
                     if(rho < 0)ambiguousX[0] = 1;// std::cout<<"rhoooooooo   \n"<<rho<<"   --"<<theta<<"\n";
                     else ambiguousX[1] = 1;
-                    //                  if(originTheta > CV_PI - rotationThreshold)rho = -rho;
-                    //gaussianSum(rho,0);
                 }
                 else if(abs(deltaThetaY) < rotationThreshold)//it is x line
                 {
@@ -294,8 +304,6 @@ int main(int argc, char **argv)
                     if(originTheta < rotationThreshold/1.5 || originTheta > CV_PI - rotationThreshold / 1.5) ambiguousY[2]=1;
                     if(rho < 0)ambiguousY[0] = 1;// std::cout<<"rhoooooooo   \n"<<rho<<"   --"<<theta<<"\n";
                     else ambiguousY[1] = 1;
-//                    if(originTheta > CV_PI - rotationThreshold && )rho = -rho;
-                    //gaussianSum(rho,1);
                 }
             }
 	        line(warpedImg,pt1,pt2,Scalar(0,0,255),2,LINE_AA);
@@ -310,7 +318,7 @@ int main(int argc, char **argv)
         else if(xAverageDirection < 0) xAverageDirection += CV_PI;
         if(yAverageDirection > CV_PI) yAverageDirection -= CV_PI;
         else if(yAverageDirection < 0) yAverageDirection += CV_PI;
-        //get robot direction
+        //get robot direction---------> robotGlobalDirection
         if(abs(xAverageDirection - xDirectionOfPreviousFrame) < rotationThreshold) 
             robotGlobalDirection += ((double)xAverageDirection- (double)xDirectionOfPreviousFrame);
         else 
@@ -322,38 +330,22 @@ int main(int argc, char **argv)
         int Dir = robotGlobalDirection;
         int dirStatus = robotDirectionClassification(Dir);
         if(ambiguousX[0]==1&&ambiguousX[1]==1&&ambiguousX[2]==1)
-        {
             dirStatus = 5;
-        }
         if(ambiguousY[0]==1&&ambiguousY[1]==1&&ambiguousY[2]==1)
-        {
             dirStatus = 6;
-        }
         for(int i = 0; i < xDirCnt; i++)
         {
             int rho = rhoOfX[i];
             switch (dirStatus)
             {
-            case 1:
-                break;
-            case 2:
-                break;
-            case 3:
-                rho = -rho;
-                break;
-            case 4:
-                break;
-            case 5:
-                if(abs(robotGlobalDirection) < CV_PI / 10.0)
-                    if(rho>0)rho = -rho;
-                break;
-            case 6:
-                if(robotGlobalDirection > 0)rho = -rho;
-                else ;
-            default:
-                break;
+            case 1:break;
+            case 2:break;
+            case 3:rho = -rho;break;
+            case 4:break;
+            case 5:if((abs(robotGlobalDirection) < CV_PI / 10.0 )&& rho>0)rho = -rho;break;
+            case 6:if(robotGlobalDirection > 0)rho = -rho;else ;
+            default:break;
             }
-            
             gaussianSum(rho,0);
         }
         for(int i = 0; i < yDirCnt; i++)
@@ -361,30 +353,13 @@ int main(int argc, char **argv)
             int rho = rhoOfY[i];
             switch (dirStatus)
             {
-            case 1:
-                /* code */
-                break;
-            case 2:
-                rho = -rho;
-                break;
-            case 3:
-                rho = -rho;
-                break;
-            case 4:
-                /* code */
-                break;
-            case 5:
-                if(abs(robotGlobalDirection) < CV_PI / 10.0)
-                    if(rho > 0)rho = -rho;
-                break;
-            case 6:
-                if(robotGlobalDirection > 0);
-                else
-                {
-                    if(rho > 0) rho = -rho;
-                }
-             default:
-                break;
+            case 1:break;
+            case 2:rho = -rho;break;
+            case 3:rho = -rho;break;
+            case 4:break;
+            case 5:if(abs(robotGlobalDirection) < CV_PI / 10.0 && rho > 0)rho = -rho;break;
+            case 6:if(robotGlobalDirection > 0);else if(rho > 0)rho = -rho;
+            default:break;
             }
             gaussianSum(rho,1);
         }
@@ -395,7 +370,6 @@ int main(int argc, char **argv)
 
 
         //trying to find the fitest grid by using traversal
-        // output xRho yRho
         int xMax = 0, yMax = 0; //rho theta stores the value of fitest gridline
         for(int i = maxLensInImg; i <= maxLensInImg + pixelsCntPerCentimeter * 29 ; i += 3)
         {
@@ -423,39 +397,33 @@ int main(int argc, char **argv)
                 yRho = i - maxLensInImg;
             }
         }
-        //std::cout<<"xrho "<<xRho<<"\n\n";
         
         //calculate robot global position
         double deltaX = xRho - xPreviousRho,deltaY = yRho - yPreviousRho;
-        if(deltaX < -60 * photoReductionScale) yGlobal++;
-        else if(deltaX > 60* photoReductionScale) yGlobal--;
-        if(deltaY < -60* photoReductionScale) xGlobal++;
-        else if(deltaY > 60* photoReductionScale) xGlobal--;
+        if(deltaX < -pixelsCntPerCentimeter * 17) yGlobal++;
+        else if(deltaX > pixelsCntPerCentimeter * 17) yGlobal--;
+        if(deltaY < -pixelsCntPerCentimeter * 17) xGlobal++;
+        else if(deltaY > pixelsCntPerCentimeter * 17) xGlobal--;
+        
         //draw grid lines
         Point pt1, pt2;
         double a1,b1,x0,y0,a2,b2;
-        a1 = cos(xAverageDirection), b1 = sin(xAverageDirection);
-        x0 = a1*xRho, y0 = b1*xRho;
-        pt1.x = cvRound(x0 + 1000*(-b1));
-        pt1.y = cvRound(y0 + 1000*(a1));
-        pt2.x = cvRound(x0 - 1000*(-b1));
-        pt2.y = cvRound(y0 - 1000*(a1));
+            a1 = cos(xAverageDirection), b1 = sin(xAverageDirection);
+            x0 = a1*xRho, y0 = b1*xRho;
+            pt1.x = cvRound(x0 + 1000*(-b1));pt1.y = cvRound(y0 + 1000*(a1));
+            pt2.x = cvRound(x0 - 1000*(-b1));pt2.y = cvRound(y0 - 1000*(a1));
         line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
-        
-        a2 = cos(yAverageDirection), b2 = sin(yAverageDirection);
-        x0 = a2*yRho, y0 = b2*yRho;
-        pt1.x = cvRound(x0 + 1000*(-b2));
-        pt1.y = cvRound(y0 + 1000*(a2));
-        pt2.x = cvRound(x0 - 1000*(-b2));
-        pt2.y = cvRound(y0 - 1000*(a2));
-        line(warpedImg,pt1,pt2,Scalar(0,255,255),4,LINE_AA);
+            a2 = cos(yAverageDirection), b2 = sin(yAverageDirection);
+            x0 = a2*yRho, y0 = b2*yRho;
+            pt1.x = cvRound(x0 + 1000*(-b2));pt1.y = cvRound(y0 + 1000*(a2));
+            pt2.x = cvRound(x0 - 1000*(-b2));pt2.y = cvRound(y0 - 1000*(a2));
+        line(warpedImg,pt1,pt2,Scalar(255,255,255),4,LINE_AA);
 
 
 
 
 
         //draw debug data of gaussion sum 
-
          Mat xCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
          Mat yCanvas(int(maxLensInImg *2 + 20) , gaussianSumMax,CV_8UC3,Scalar(255,255,255,0.5));
          line(xCanvas,Point(maxLensInImg,0),Point(maxLensInImg,gaussianSumMax),Scalar(0,0,0),2,LINE_AA);//y axis
@@ -470,128 +438,33 @@ int main(int argc, char **argv)
          imshow("xxx",xCanvas);
          imshow("yyy",yCanvas);
 
-
-        //localization data calculation
-        //robotGlobalDirection += -(xAverageDirection - xDirectionOfPreviousFrame);//i shall test the range of output
-        //int xDeltaRho = xRho - xPreviousRho, yDeltaRho = yRho - yPreviousRho;
-        // if(abs(xDeltaRho) >= pixelsCntPerCentimeter * 21)
-        // {
-        //    // if(sin(robotDirection) < 0)
-        // }
-
-
-
-
-        // //here, i have the rho and theta of one x and one y axis
-        // // cos(xtheta) = a1 sin(xtheta) = b1 
-        // // cos y         a2 sin y         b2
-        // //xAverageDirection yAverageDirection
-        // // xRho yRho
-        // //get cross point
-        // int crossExists[8][8];
-        // int crossPosition[8][8][2];//0-x 1-y
-        // std::vector<Point>cellFlag;
-        // memset(crossExists,0,sizeof(crossExists));
-        // memset(crossPosition,0,sizeof(crossPosition));
-
-        // for(int i = -2; i <= 2; i++) //traversal different parellel line of x / y to get all the crosses
-        // {
-        //     int xTempRho = xRho + i * 30 * pixelsCntPerCentimeter ;
-        //     for(int k = -2; k <= 2; k++)
-        //     {
-        //         int yTempRho = yRho + i * 30 * pixelsCntPerCentimeter ;
-        //         float crossX,crossY;
-        //         crossX = (yTempRho / b2 - xTempRho / b1) / (a2 / b2 - a1 / b1);
-        //         crossY = ( -a1 / b1) * crossX + xTempRho / b1;
-        //         if(crossX <= 300 && crossX >= 0 && crossY <= 300 && crossY >= 0)//cross in img
-        //         {
-        //             circle(warpedImg, Point(crossX,crossY), 5, Scalar(0, 255, 0), -1);
-        //             crossExists[int(crossX/60)][int(crossY/60)] = 1;
-        //             crossPosition[int(crossX/60)][int(crossY/60)][0] = crossX;
-        //             cellFlag.push_back(Point(int(crossX/60),int(crossY/60)));
-        //             crossPosition[int(crossX/60)][int(crossY/60)][1] = crossY;
-
-        //         }
-                
-
-
-        //     }
-        // }
-        // //most of this is written late in the night. forgive me for the sh*t-like code
-        // int crossCnt = 0;
-        // double previousLine[2][2]; 
-        // double currentLine[2][2];
-        // int pointCnt = 0;
-        // for(int i = 0;i < cellFlag.size();i++)
-        // {
-        //     int tempX = cellFlag[i].x;
-        //     int tempY = cellFlag[i].y;
-        //     for(int i2 = -1 ; i2 <= 1; i2++)
-        //     {
-        //         for(int i3 = -1;i3 <= 1;i3++)
-        //         {
-        //             if(previousCrossExists[tempX + i2][tempY + i3] == 1
-        //                 && (pow(previousCrossPosition[tempX + i2][tempY + i3][0] 
-        //                 - crossPosition[tempX][tempY][0],2) 
-        //                 + pow(previousCrossPosition[tempX + i2][tempY + i3][1] 
-        //                 - crossPosition[tempX][tempY][1],2))
-        //                 <= pow(10 * pixelsCntPerCentimeter, 2) )//if two point matches(between previous frame and current)
-        //             {
-        //                 i2 = 2; i3 = 2;
-        //                 previousLine[pointCnt][0] = previousCrossPosition[tempX + i2][tempY + i3][0];
-        //                 previousLine[pointCnt][1] = previousCrossPosition[tempX + i2][tempY + i3][1];
-        //                 currentLine[pointCnt][0] = crossPosition[tempX + i2][tempY + i3][0];
-        //                 currentLine[pointCnt][1] = crossPosition[tempX + i2][tempY + i3][1];
-        //                 pointCnt++;
-        //                 if(pointCnt >= 2) i = cellFlag.size()+1;
-        //             }
-
-        //         }
-        //     }
-        // }
-        // //now i have two point in two frame respectively
-        // // i have to calculate the change between two frame.
-        // // i can see i m gonna to success!
-        // double previousTheta = atan2(previousLine[0][1]-previousLine[1][1],
-        //                             previousLine[0][0]-previousLine[1][0]);
-        // double currentTheta = atan2(currentLine[0][1]-currentLine[1][1],
-        //                             currentLine[0][0]-currentLine[1][0]);
-        // double deltaTheta_ = currentTheta - previousTheta;
-        // robotGlobalDirection += deltaTheta_;
-        // double rCurrentPoint1 = sqrt(pow(currentLine[0][0],2) + pow(currentLine[0][1],2));
-        // double point1Theta = - deltaTheta_ + atan2(currentLine[0][1],currentLine[0][0]);
-        // double transformedX = cos(point1Theta) * rCurrentPoint1;
-        // double transformedY = sin(point1Theta) * rCurrentPoint1;
-        // robotGlobalX += - (transformedX - previousLine[0][0]);
-        // robotGlobalY += - (transformedY - previousLine[0][1]);
         
-        // //reset
-        // //std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
-        // for(int i = 0; i <= 7; i++)
-        // {
-        //     for(int i2 = 0; i2 <= 7; i2++)
-        //     {
-        //         previousCrossExists[i][i2] = crossExists[i][i2];
-        //        previousCrossPosition[i][i2][0] = crossPosition[i][i2][0];
-        //        previousCrossPosition[i][i2][1] = crossPosition[i][i2][1];
-        //     }
-        // }            
-
-        //memcpy(previousCrossExists,crossExists,sizeof(crossExists));
-        //memcpy(previousCrossPosition,crossPosition,sizeof(crossPosition));
         
-       
-        // std::cout << "xDir: "<< xDirectionOfPreviousFrame << "  xRho: " << xRho << " yDir: " << yDirectionOfPreviousFrame 
-        //          <<"  yRho: "<< yRho <<<< std::endl;
-        //std::cout << "x::" << robotGlobalX << "y::" << robotGlobalY << "dir" << robotGlobalDirection << std::endl;
-        std::cout<< "  x  " << xGlobal <<"  y  "<<yGlobal;
-        std::cout<<"  bot dir  " << robotGlobalDirection ;
-        std::cout<<std::endl;
+        
+        
+        
+        
+        //reset
         xDirectionOfPreviousFrame = xAverageDirection;
         yDirectionOfPreviousFrame = yAverageDirection;
         xPreviousRho = xRho;
         yPreviousRho = yRho;
+        
+
+        //calculate precise data
+        double  preciseXGlobal = xGlobal + xRho * 0,
+                preciseYGlobal = yGlobal + yRho * 0;
+        volatile double  robotPreciseX = preciseXGlobal + 3.0 * cos(robotGlobalDirection), 
+                robotPreciseY = preciseYGlobal + 3.0 * sin(robotGlobalDirection);
+
+        //output final data
+        std::cout<< "x  " << xGlobal <<"  y  "<<yGlobal;
+        std::cout<<std::endl;
+        std::cout<< "  bot x " << robotPreciseX <<" bot y  "<<robotPreciseY;
+        std::cout<<"  bot dir  " << robotGlobalDirection ;
+        std::cout<<std::endl;
         imshow("gridLines",warpedImg);
+
 
 	    waitKey(1);
 
