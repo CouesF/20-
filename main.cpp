@@ -12,6 +12,9 @@ Create Topic: RobotPositionInfo
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
+#include "std_msgs/Float32MultiArray.h"
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
 
 #include <sstream>
 #include <stdbool.h>
@@ -19,6 +22,15 @@ Create Topic: RobotPositionInfo
 #include <math.h>
 #include <fstream> //for debug. output to a file
 #include <string> // memset
+
+// C library headers
+#include <stdio.h>
+#include <string.h>
+// Linux headers
+#include <fcntl.h> // Contains file controls like O_RDWR
+#include <errno.h> // Error integer and strerror() function
+#include <termios.h> // Contains POSIX terminal control definitions
+#include <unistd.h> // write(), read(), close()
 
 
 #define imgWidth 640
@@ -43,13 +55,17 @@ int cutX1 = 10,
     cutY1 = 10,     
     cutX2 = 300, 
     cutY2 = 300;
+
+int MKGGENfd
 using namespace cv;
 Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
 
 std::string templateCam("/dev/video0"); 
+std::string MKGGEN("/dev/MKGGEN");
 std::string blueTemplatePath = "/home/coues/template/blueTemplate.png";
 std::string greenTemplatePath = "/home/coues/template/greenTemplate.png";
 std::string redTemplatePath = "/home/coues/template/redTemplate.png";
+Mat blueTemplate, greenTemplate, redTemplate;
 int blueLowH = 100, blueHighH = 124, 
     greenLowH = 35, greenHighH = 77, 
     redLowH1 = 0,   redHighH1 = 10, 
@@ -65,6 +81,16 @@ Scalar redHigh1 = Scalar(redHighH1,HighS,HighV);
 Scalar redHigh2 = Scalar(redHighH2,HighS,HighV);
 Mat originTemplate;
 Mat temPlates[200];
+float robotCurrentGlobalPosition[3];
+void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
+{
+    int i = 0;
+	for(std::vector<float>::const_iterator it = array->data.begin(); it != array->data.end(); ++it){
+		robotCurrentGlobalPosition[i] = *it;
+		i++;
+	}
+	return;
+}
 
 //TODO: IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
 Mat convertBGR2HSV(Mat originImg)
@@ -157,8 +183,59 @@ Point circleCentralPointDetectionBGR(Mat img)
     imshow("circleDetect",croppedImg);
     waitKey(5);
 }
+void moveToGlobalPosition(Point3f target)
+{
+    double speedA, speedB, speedC, speedD;
+    double deltaX = target.x - robotCurrentGlobalPosition[0];
+    double deltaY = target.y - robotCurrentGlobalPosition[1];
+    double moveDir = atan2(deltaY,deltaX);
+    moveDir += CV_PI / 4;
+    double distance = sqrt(deltaX * deltaX + deltaY * deltaY);
+    double movingSpeed;// =  / ;
+    double maxSpeed = 100.0;
+    if(distance > 1.2)
+    {
+        movingSpeed = maxSpeed * 0.85;
+    }
+    else if(distance > 0.35)
+    {
+        movingSpeed = distance/1.2 * 0.85 * maxSpeed;
+    }
+    else
+    {
+        movingSpeed = maxSpeed * 0.15;
+    }
+    
+    speedA = - movingSpeed * sin(moveDir);
+    speedB = movingSpeed * cos(moveDir);
+    speedC = movingSpeed * sin(moveDir);
+    speedD = - movingSpeed * cos(moveDir);
 
+    double deltaRotation = target.z - robotCurrentGlobalPosition[2];
+    int rotationSpeed = int(deltaRotation * 15.0);
+    if(deltaRotation > 1.2)
+    {
+        rotationSpeed = maxSpeed * 0.3;
+    }
+    else if(deltaRotation > 0.35)
+    {
+        rotationSpeed = rotationSpeed/1.2 * 0.3 * maxSpeed;
+    }
+    else
+    {
+        rotationSpeed = maxSpeed * 0.8;
+    }
+    speedA += rotationSpeed;
+    speedB += rotationSpeed;
+    speedC += rotationSpeed;
+    speedD += rotationSpeed;
 
+    std::string msg = "S A" + std::to_string((int)speedA) + " B" + std::to_string((int)speedB) + " C" + std::to_string((int)speedC) +" D" + std::to_string((int)speedD) + "\n";
+    //unsigned char msg[] = { 'H', 'e', 'l', 'l', 'o', '\n' };
+    write(MKGGENfd, msg.c_str(), sizeof(msg.c_str()));
+    //https://blog.csdn.net/qq_38410730/article/details/103272396
+    
+}
 
 // Point 
 // {
@@ -226,7 +303,7 @@ Point templateMatching(Mat src)//return the value of x y for robot to move
     
     waitKey(5);
 }
-
+setSerialMKSGEN(int fd,struct termios *tty);
 int main(int argc, char **argv)
 {
         //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
@@ -241,22 +318,43 @@ int main(int argc, char **argv)
     ros::init(argc,argv, "main");
     ros::NodeHandle n;
 
-    ros::Publisher PositionPublisher = 
-        n.advertise<std_msgs::String>("mainStatus", 500);
+    ros::Subscriber  PositionSubscriber = 
+        n.advertise<std_msgs::Float32MultiArray>("RobotPositionInfo", 100,arrayCallback);
     ros::Rate loop_rate (loopRate);//max rate is 30 Hz. ImageProcess may slower than it.
 
     
 
-    VideoCapture cap;
     // cap initialization and setting
+    VideoCapture cap;
     cap.open(templateCam);
     if(!cap.isOpened()){ 
         std::cout << "cam openning failed" << std::endl;
 	    return -1;
     }
     setCamera(&cap, imgWidth, imgHeight, 2);
+
+    //template initialize
+    blueTemplate = imread(blueTemplatePath), 
+    greenTemplate = imread(greenTemplatePath), 
+    redTemplate = imread(redTemplatePath);
+
+
+
+
+    //Serial Open & settings
+    MKGGENfd = open(MKGGEN,O_RDWR);
+    struct termios MKGGENtermios;
+    if(MKGGENfd == -1) return -1;
+    if(tcgetattr(MKGGENfd, &MKGGENtermios) != 0) {
+    return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+    }
+    setSerial(MKGGENfd,&MKGGENtermios);
+
+
+
     while (ros::ok())
     {
+        ros::spinOnce();
         Mat img;
         cap >> img;
 	//    templateMatching(img);
@@ -268,4 +366,23 @@ int main(int argc, char **argv)
 
     }
 
+}
+
+
+setSerialMKSGEN(int fd,struct termios *tty)
+{
+    tcflush(fd, TCIOFLUSH);
+    (*tty).c_cflag &= ~PARENB;
+    (*tty).c_cflag &= ~CSTOPB;
+    (*tty).c_cflag |= CS8;
+    (*tty).c_lflag &= ~ECHO;
+    (*tty).c_cc[VTIME] = 0;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
+    (*tty).c_cc[VMIN] = 1;
+    
+    cfsetispeed((*tty),B115200); /*设置结构termios输入波特率为19200Bps*/
+    cfsetospeed((*tty),B115200);   /*fd应该是文件描述的意思*/
+    if (tcsetattr(fd, TCSANOW, tty) != 0) {
+        return -1;//printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
+    }
+    tcflush(fd,TCIOFLUSH);  //设置后flush
 }

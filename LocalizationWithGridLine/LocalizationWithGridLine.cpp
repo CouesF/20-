@@ -12,6 +12,9 @@ Create Topic: RobotPositionInfo
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
+#include "std_msgs/Float32MultiArray.h"
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
 
 #include <sstream>
 #include <stdbool.h>
@@ -160,7 +163,7 @@ int main(int argc, char **argv)
     int xGlobal = 0, yGlobal = 0;
 
     int xRho,yRho,xPreviousRho = 0,yPreviousRho = 0;
-
+    std_msgs::Float32MultiArray positionDataToSend;
 
     //undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
     
@@ -174,7 +177,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
 
     ros::Publisher PositionPublisher = 
-        n.advertise<std_msgs::String>("RobotPositionInfo", 500);
+        n.advertise<std_msgs::Float32MultiArray>("RobotPositionInfo", 100);
     ros::Rate loop_rate (loopRate);//max rate is 30 Hz. ImageProcess may slower than it.
 
     
@@ -463,6 +466,16 @@ int main(int argc, char **argv)
         std::cout<< "  bot x " << robotPreciseX <<" bot y  "<<robotPreciseY;
         std::cout<<"  bot dir  " << robotGlobalDirection ;
         std::cout<<std::endl;
+
+        //publish position
+        positionDataToSend.data.clear();
+        positionDataToSend.data.push_back(robotPreciseX );
+        positionDataToSend.data.push_back(robotPreciseY );
+        positionDataToSend.data.push_back(robotGlobalDirection );
+        PositionPublisher.publish(positionDataToSend);
+        ROS_INFO("I published something!");
+        //ros::spinOnce();// do not need it if have no callback
+
         imshow("gridLines",warpedImg);
 
 
