@@ -55,6 +55,13 @@ Point2f perspectiveTransformWarpedPointa[4] = {Point2f(0,0),Point2f(warpedWidth,
 int xGridLinesFitting[int(maxLensInImg *2 + 20)];
 int yGridLinesFitting[int(maxLensInImg *2 + 20)];
 float gaussianPara[32];//center is set to 15
+
+
+//debug
+Mat theMap(500,500,CV_8UC3,Scalar(255,255,255,0.5));
+
+
+
 void calculateGaussianPara()
 {
     double para = 1.0/sqrt(35.0*2.0*CV_PI);
@@ -454,6 +461,10 @@ int main(int argc, char **argv)
          imshow("xxx",xCanvas);
          imshow("yyy",yCanvas);
 
+
+         
+        
+
         
         
         
@@ -480,6 +491,22 @@ int main(int argc, char **argv)
         std::cout<< "  bot x " << robotPreciseX <<" bot y  "<<robotPreciseY;
         std::cout<<"  bot dir  " << robotGlobalDirection ;
         std::cout<<std::endl;
+
+        //debug data of mapping
+        circle(theMap,
+	           Point(robotPreciseX * 50 + 50,
+		             500 - (robotPreciseY * 50 + 50)),
+	       3,
+	       (0,0,0),
+	       -1); 
+        circle(theMap,
+	           Point(preciseXGlobal * 50 + 50,
+		             500 - (preciseYGlobal * 50 + 50)),
+	       3,
+	       (255,255,0),
+	       -1);   
+        imshow("mapppppp",theMap);
+
 
         //publish position
         positionDataToSend.data.clear();
