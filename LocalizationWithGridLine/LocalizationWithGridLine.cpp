@@ -34,8 +34,8 @@ Create Topic: RobotPositionInfo
 #define imgPartitionSize 60 * photoReductionScale//(pixels) divide the img into areas. make sure each part has only one cross
 #define gaussianBlurSize 11
 #define pixelsCntPerCentimeter 3.33  * photoReductionScale//DONE: 100p = 30cm
-#define houghLineThreshold pixelsCntPerCentimeter*20.0
-#define rotationThreshold (double)(18.0/180.0*CV_PI)
+#define houghLineThreshold pixelsCntPerCentimeter*25.0
+#define rotationThreshold (double)(10.0/180.0*CV_PI)
 #define maxLensInImg (double)(sqrt(pow(warpedWidth ,2)+pow(warpedHeight,2)) + 4.0)
 #define currentFrame 1
 #define previousFrame 0
@@ -54,14 +54,15 @@ Point2f perspectiveTransformOriginPoint[4] = {Point2f(155,0),Point2f(485,0),Poin
 Point2f perspectiveTransformWarpedPointa[4] = {Point2f(0,0),Point2f(warpedWidth,0),Point2f(0,warpedHeight),Point2f(warpedWidth,warpedHeight)};
 int xGridLinesFitting[int(maxLensInImg *2 + 20)];
 int yGridLinesFitting[int(maxLensInImg *2 + 20)];
-float gaussianPara[int(pixelsCntPerCentimeter*3+2)];
+float gaussianPara[32];//center is set to 15
 void calculateGaussianPara()
 {
-    double para = 1.0/sqrt(2.0*CV_PI);
-    double gap = 4.0 / pixelsCntPerCentimeter / 3.0;
-    for(int i = 1;i <= pixelsCntPerCentimeter * 3;i++)
+    double para = 1.0/sqrt(35.0*2.0*CV_PI);
+    //sigma^2 = 5
+    for(int i = -9;i <= 9;i++)
     {
-        gaussianPara[i] = para * exp(-pow((double)(-2+(double)i*gap),2)/2.0)*30.0;
+	    int k = 15+i;
+        gaussianPara[k] = para * exp(-pow((double)(i/3.0),2)/35.0/2)    *45.0;
     }
 }
 
@@ -70,17 +71,17 @@ void gaussianSum(int pixelPosition,int k)// TODO:rewrite using array
 {
     pixelPosition += maxLensInImg;
     int pixelTempPos;
-    for(int i = 1;i <= pixelsCntPerCentimeter * 3 ;i++)
+    for(int i = -9;i <= 9 ;i++)
     {
-        pixelTempPos = int(pixelPosition + i - pixelsCntPerCentimeter * 3.0 / 2.0 );
+        pixelTempPos = int(pixelPosition + i);
         //if(pixelTempPos > maxLensInImg || pixelTempPos < 1) continue;
         if(k == 0)
         {
-            xGridLinesFitting[pixelTempPos] += double(gaussianPara[i]);
+            xGridLinesFitting[pixelTempPos] += double(gaussianPara[i+15]);
         }
         if(k == 1)
         {
-            yGridLinesFitting[pixelTempPos] += double(gaussianPara[i]);
+            yGridLinesFitting[pixelTempPos] += double(gaussianPara[i+15]);
         }
     }
 }
@@ -121,7 +122,7 @@ void captureInitializaition(VideoCapture *capture)
     (*capture).set(CV_CAP_PROP_BUFFERSIZE, camBuffersize);
     if(!(*capture).isOpened()){ 
         std::cout << "cam openning failed" << std::endl;
-	return -1;
+	return ;
     }
     std::string cmd1("v4l2-ctl -d ");
     std::string cmd11(" -c exposure_auto=1");
@@ -160,7 +161,7 @@ int main(int argc, char **argv)
     double xDirectionOfPreviousFrame = 0,yDirectionOfPreviousFrame = CV_PI/2;//theta in img.
     double robotGlobalDirection =  -CV_PI / 2; //robot direction in global map. Initial direction is -pi/2
     double robotGlobalX = 0,robotGlobalY = 0;
-    int xGlobal = 0, yGlobal = 0;
+    int xGlobal = 0, yGlobal = 3;
 
     int xRho,yRho,xPreviousRho = 0,yPreviousRho = 0;
     std_msgs::Float32MultiArray positionDataToSend;
@@ -193,7 +194,7 @@ int main(int argc, char **argv)
         Mat lambda = getPerspectiveTransform(perspectiveTransformOriginPoint,perspectiveTransformWarpedPointa);
         warpPerspective(originImg,warpedImg,lambda, Size(320 * photoReductionScale,300 * photoReductionScale),INTER_LINEAR);
 
-	    line(warpedImg,Point(30,30),Point(80,30),Scalar(0,0,255),2,LINE_AA);
+	    //line(warpedImg,Point(30,30),Point(80,30),Scalar(0,0,255),2,LINE_AA);
         imshow("warpedImg",warpedImg);
         
         
@@ -221,14 +222,16 @@ int main(int argc, char **argv)
         //test Median blur
         Mat testForMedianBlur = warpedGrayImg;
         medianBlur(testForMedianBlur, testForMedianBlur, 5);
-        canny(testForMedianBlur,testForMedianBlur,cannyMinThreshold,cannyMaxThreshold,3);
+        Canny(testForMedianBlur,testForMedianBlur,cannyMinThreshold,cannyMaxThreshold,3);
 	    imshow("medianCanny",testForMedianBlur);
 
         //Img pre-processing and 
-	    GaussianBlur(warpedGrayImg,warpedGrayImg,Size(gaussianBlurSize,gaussianBlurSize),0);
-        Canny(warpedGrayImg,warpedGrayImg,cannyMinThreshold,cannyMaxThreshold,3);
-        imshow("gaussianCanny",warpedGrayImg);
-	    
+	//    GaussianBlur(warpedGrayImg,warpedGrayImg,Size(gaussianBlurSize,gaussianBlurSize),0);
+        //Canny(warpedGrayImg,warpedGrayImg,cannyMinThreshold,cannyMaxThreshold,3);
+        //imshow("gaussianCanny",warpedGrayImg);
+	 
+	warpedGrayImg = testForMedianBlur;
+
 
         //line detection
         std::vector<Vec2f>lines;
@@ -330,13 +333,14 @@ int main(int argc, char **argv)
         else if( robotGlobalDirection <-CV_PI)robotGlobalDirection += 2*CV_PI;
         
         //process the rho using robot Dir
-        int Dir = robotGlobalDirection;
+        double Dir = robotGlobalDirection;
         int dirStatus = robotDirectionClassification(Dir);
         if(ambiguousX[0]==1&&ambiguousX[1]==1&&ambiguousX[2]==1)
             dirStatus = 5;
         if(ambiguousY[0]==1&&ambiguousY[1]==1&&ambiguousY[2]==1)
             dirStatus = 6;
-        for(int i = 0; i < xDirCnt; i++)
+     //   printf("status:%d\n",dirStatus); 
+	for(int i = 0; i < xDirCnt; i++)
         {
             int rho = rhoOfX[i];
             switch (dirStatus)
@@ -344,7 +348,7 @@ int main(int argc, char **argv)
             case 1:break;
             case 2:break;
             case 3:rho = -rho;break;
-            case 4:break;
+            case 4:rho = - rho;break;
             case 5:if((abs(robotGlobalDirection) < CV_PI / 10.0 )&& rho>0)rho = -rho;break;
             case 6:if(robotGlobalDirection > 0)rho = -rho;else ;
             default:break;
@@ -361,7 +365,16 @@ int main(int argc, char **argv)
             case 3:rho = -rho;break;
             case 4:break;
             case 5:if(abs(robotGlobalDirection) < CV_PI / 10.0 && rho > 0)rho = -rho;break;
-            case 6:if(robotGlobalDirection > 0);else if(rho > 0)rho = -rho;
+            case 6:
+		if(robotGlobalDirection > 0)
+		{
+		    if(rho<0)rho = - rho;
+		}
+		else if(rho > 0)
+		{
+		    rho = -rho;
+		}
+		break;
             default:break;
             }
             gaussianSum(rho,1);
@@ -455,13 +468,14 @@ int main(int argc, char **argv)
         
 
         //calculate precise data
-        double  preciseXGlobal = xGlobal + xRho * 0,
-                preciseYGlobal = yGlobal + yRho * 0;
-        volatile double  robotPreciseX = preciseXGlobal + 3.0 * cos(robotGlobalDirection), 
-                robotPreciseY = preciseYGlobal + 3.0 * sin(robotGlobalDirection);
+        double  preciseXGlobal = xGlobal + yRho/48.0,
+                preciseYGlobal = yGlobal + xRho/48.0;
+        volatile double robotPreciseX = preciseXGlobal + 3.0000 * cos(robotGlobalDirection); 
+	volatile double robotPreciseY = preciseYGlobal + 3.0000 * sin(robotGlobalDirection);
 
         //output final data
-        std::cout<< "x  " << xGlobal <<"  y  "<<yGlobal;
+        std::cout<< "x  " << xGlobal <<"  y  "<<yGlobal<<std::endl;
+        std::cout<< "xp  " << preciseXGlobal <<"  yp  "<<preciseYGlobal;
         std::cout<<std::endl;
         std::cout<< "  bot x " << robotPreciseX <<" bot y  "<<robotPreciseY;
         std::cout<<"  bot dir  " << robotGlobalDirection ;

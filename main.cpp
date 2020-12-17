@@ -56,7 +56,7 @@ int cutX1 = 10,
     cutX2 = 300, 
     cutY2 = 300;
 
-int MKGGENfd
+int MKGGENfd;
 using namespace cv;
 Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
 
@@ -81,6 +81,9 @@ Scalar redHigh1 = Scalar(redHighH1,HighS,HighV);
 Scalar redHigh2 = Scalar(redHighH2,HighS,HighV);
 Mat originTemplate;
 Mat temPlates[200];
+
+
+Mat theMap(500,500,CV_8UC3,Scalar(255,255,255,0.5));
 float robotCurrentGlobalPosition[3];
 void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 {
@@ -89,6 +92,12 @@ void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 		robotCurrentGlobalPosition[i] = *it;
 		i++;
 	}
+    	circle(theMap,
+	       Point(robotCurrentGlobalPosition[0] * 50 + 50,
+		     robotCurrentGlobalPosition[1] * 50 + 50),
+	       4,
+	       (0,0,0),
+	       -1);
 	return;
 }
 
@@ -303,7 +312,7 @@ Point templateMatching(Mat src)//return the value of x y for robot to move
     
     waitKey(5);
 }
-setSerialMKSGEN(int fd,struct termios *tty);
+void setSerialMKSGEN(int fd,struct termios *tty);
 int main(int argc, char **argv)
 {
         //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
@@ -319,11 +328,12 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
 
     ros::Subscriber  PositionSubscriber = 
-        n.advertise<std_msgs::Float32MultiArray>("RobotPositionInfo", 100,arrayCallback);
+        n.subscribe<std_msgs::Float32MultiArray>("RobotPositionInfo", 24,arrayCallback);
     ros::Rate loop_rate (loopRate);//max rate is 30 Hz. ImageProcess may slower than it.
 
     
-
+    if(1)goto tempLabel;
+    {
     // cap initialization and setting
     VideoCapture cap;
     cap.open(templateCam);
@@ -333,6 +343,9 @@ int main(int argc, char **argv)
     }
     setCamera(&cap, imgWidth, imgHeight, 2);
 
+    
+    
+    
     //template initialize
     blueTemplate = imread(blueTemplatePath), 
     greenTemplate = imread(greenTemplatePath), 
@@ -340,36 +353,36 @@ int main(int argc, char **argv)
 
 
 
-
     //Serial Open & settings
-    MKGGENfd = open(MKGGEN,O_RDWR);
+    MKGGENfd = open(MKGGEN.c_str(),O_RDWR);
     struct termios MKGGENtermios;
     if(MKGGENfd == -1) return -1;
     if(tcgetattr(MKGGENfd, &MKGGENtermios) != 0) {
     return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
     }
-    setSerial(MKGGENfd,&MKGGENtermios);
-
-
+    setSerialMKSGEN(MKGGENfd,&MKGGENtermios);
+    }
+    tempLabel:;
 
     while (ros::ok())
     {
         ros::spinOnce();
-        Mat img;
-        cap >> img;
+    //    Mat img;
+  //      cap >> img;
 	//    templateMatching(img);
 	    //get the stream and cut the im
         //for(int i = 1;i <= 1;i++)
         //while(cap.grab()){}
 
-	circleCentralPointDetectionBGR(img);
-
+//	circleCentralPointDetectionBGR(img);
+        imshow("mappppp",theMap);	
+   	waitKey(100);
     }
 
 }
 
 
-setSerialMKSGEN(int fd,struct termios *tty)
+void setSerialMKSGEN(int fd,struct termios *tty)
 {
     tcflush(fd, TCIOFLUSH);
     (*tty).c_cflag &= ~PARENB;
@@ -379,10 +392,10 @@ setSerialMKSGEN(int fd,struct termios *tty)
     (*tty).c_cc[VTIME] = 0;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
     (*tty).c_cc[VMIN] = 1;
     
-    cfsetispeed((*tty),B115200); /*设置结构termios输入波特率为19200Bps*/
-    cfsetospeed((*tty),B115200);   /*fd应该是文件描述的意思*/
+    cfsetispeed(tty,B115200); /*设置结构termios输入波特率为19200Bps*/
+    cfsetospeed(tty,B115200);   /*fd应该是文件描述的意思*/
     if (tcsetattr(fd, TCSANOW, tty) != 0) {
-        return -1;//printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
+        return ;//printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
     }
     tcflush(fd,TCIOFLUSH);  //设置后flush
 }
