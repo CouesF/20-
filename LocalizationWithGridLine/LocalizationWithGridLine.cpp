@@ -56,7 +56,8 @@ int xGridLinesFitting[int(maxLensInImg *2 + 20)];
 int yGridLinesFitting[int(maxLensInImg *2 + 20)];
 float gaussianPara[32];//center is set to 15
 
-
+#define tempTheta atan(2.0/3.25)
+#define lenth  sqrt(3.25*3.25 + 2.0*2.0)
 //debug
 Mat theMap(500,500,CV_8UC3,Scalar(255,255,255,0.5));
 
@@ -481,8 +482,9 @@ int main(int argc, char **argv)
         //calculate precise data
         double  preciseXGlobal = xGlobal + yRho/48.0,
                 preciseYGlobal = yGlobal + xRho/48.0;
-        volatile double robotPreciseX = preciseXGlobal + 3.0000 * cos(robotGlobalDirection); 
-	volatile double robotPreciseY = preciseYGlobal + 3.0000 * sin(robotGlobalDirection);
+	
+        volatile double robotPreciseX = preciseXGlobal + lenth * cos(robotGlobalDirection+tempTheta); 
+	volatile double robotPreciseY = preciseYGlobal + lenth * sin(robotGlobalDirection+tempTheta);
 
         //output final data
         std::cout<< "x  " << xGlobal <<"  y  "<<yGlobal<<std::endl;
@@ -503,8 +505,8 @@ int main(int argc, char **argv)
 	           Point(preciseXGlobal * 50 + 50,
 		             500 - (preciseYGlobal * 50 + 50)),
 	       3,
-	       (255,255,0),
-	       -1);   
+	       (0,0,200),
+	       1);   
         imshow("mapppppp",theMap);
 
 
