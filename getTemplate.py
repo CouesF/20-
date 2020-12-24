@@ -1,32 +1,32 @@
-import cv2
+#import cv2
 import serial
 import math
-
+import time
 pi = 3.141592653589793
 
 MKSGEN = '/dev/MKSGEN'
 baud = 115200
 genSerial = serial.Serial(
     port=MKSGEN,\
-    baudrate=9600,\
+    baudrate=baud,\
+    bytesize=serial.EIGHTBITS,\
     parity=serial.PARITY_NONE,\
     stopbits=serial.STOPBITS_ONE,\
-    bytesize=serial.EIGHTBITS,\
-        timeout=0)
+    timeout=5)
 print(genSerial.name)         # check which port was really used
 speed = [0, 0, 0, 0]# A B C D
 templateCam = '/dev/templateCam'
 #cam = cv2.VideoCapture(templateCam)
 
-def getSpeed(dir, speedG, rotation)
+def getSpeed(direction, speedG, rotation):
     """
     docstring
     """
-    dir = dir + (pi / 4.0)
-    speed[0] = -speedG * math.sin(dir)
-    speed[1] = speedG * math.cos(dir)
-    speed[2] = speedG * math.sin(dir)
-    speed[3] = -speedG * math.cos(dir)
+    direction = direction + (pi / 4.0)
+    speed[0] = -speedG * math.sin(direction)
+    speed[1] = speedG * math.cos(direction)
+    speed[2] = speedG * math.sin(direction)
+    speed[3] = -speedG * math.cos(direction)
 
     speed[0] += rotation
     speed[1] += rotation
@@ -34,12 +34,18 @@ def getSpeed(dir, speedG, rotation)
     speed[3] += rotation
     pass
 
-def setSpeed()
-    genSerial.write('S A'+speed[0]+' B'+speed[1]+' C'+speed[2]+' D'+speed[3]+'\n')
+def setSpeed():
+    mesg = str.encode('S A'+str(int(speed[0]))+' B'+str(int(speed[1]))+' C'+str(int(speed[2]))+' D'+str(int(speed[3]))+'  ')
+    genSerial.write(mesg)
+    print( mesg)
 
-getSpeed(-pi,50,0)
+#genSerial.write(str.encode('bnbs'))
+#xxx = genSerial.read(5)
+#print((xxx))
+time.sleep(2)
+getSpeed(-pi,70,0)
 setSpeed()
-time.sleep(1)
+time.sleep(8)
 getSpeed(0,0,0)
 setSpeed()
 print('set done\n')
