@@ -13,6 +13,7 @@ genSerial = serial.Serial(
     parity=serial.PARITY_NONE,\
     stopbits=serial.STOPBITS_ONE,\
     timeout=5)
+
 print(genSerial.name)         # check which port was really used
 speed = [0, 0, 0, 0]# A B C D
 templateCam = '/dev/templateCam'
@@ -42,11 +43,27 @@ def setSpeed():
 #genSerial.write(str.encode('bnbs'))
 #xxx = genSerial.read(5)
 #print((xxx))
-time.sleep(2)
-getSpeed(-pi,70,0)
+#temp = str.encode('S A50 B50 C50 D50 ')
+#genSerial.write(temp)
+#print(temp)
+
+time.sleep(1)
+
+getSpeed(-pi,80,0)
 setSpeed()
 time.sleep(8)
+
+getSpeed(-pi,120,0)
+setSpeed()
+time.sleep(3)
+
+getSpeed(-pi,30,0)
+setSpeed()
+time.sleep(2)
+
+
 getSpeed(0,0,0)
+time.sleep(8)
 setSpeed()
 print('set done\n')
 
