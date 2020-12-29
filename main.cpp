@@ -9,6 +9,9 @@ Create Topic: RobotPositionInfo
 #include"opencv2/highgui/highgui.hpp"
 //#include"opencv2/core/types.hpp"
 #include"opencv2/imgproc.hpp"//cvtColor
+#include <opencv2/objdetect.hpp>//qrcode detector
+#include <opencv2/imgcodecs.hpp>
+
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -82,9 +85,12 @@ Scalar redHigh2 = Scalar(redHighH2,HighS,HighV);
 Mat originTemplate;
 Mat temPlates[200];
 
+bool positionDataUsed;
+
 
 Mat theMap(500,500,CV_8UC3,Scalar(255,255,255,0.5));
 float robotCurrentGlobalPosition[3];
+Point3f robotCurrentGlobalPosition;
 void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 {
     int i = 0;
@@ -92,6 +98,11 @@ void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 		robotCurrentGlobalPosition[i] = *it;
 		i++;
 	}
+	positionDataUsed = 0;
+	robotCurrentGlobalPosition.x = robotCurrentGlobalPosition[0];
+        robotCurrentGlobalPosition.y = robotCurrentGlobalPosition[1];
+        robotCurrentGlobalPosition.z = robotCurrentGlobalPosition[2];
+	
     	circle(theMap,
 	       Point(robotCurrentGlobalPosition[0] * 50 + 50,
 		     robotCurrentGlobalPosition[1] * 50 + 50),
@@ -192,8 +203,13 @@ Point circleCentralPointDetectionBGR(Mat img)
     imshow("circleDetect",croppedImg);
     waitKey(5);
 }
-void moveToGlobalPosition(Point3f target)
+float distance(Point2f point1,Point2f point2)
 {
+    return sqrt(pow(point1.x-point2.x,2)+pow(point1.y-point2.y,2));
+}
+int moveToGlobalPosition(Point3f target)
+{
+    int returnValue = 0;
     double speedA, speedB, speedC, speedD;
     double deltaX = target.x - robotCurrentGlobalPosition[0];
     double deltaY = target.y - robotCurrentGlobalPosition[1];
@@ -204,15 +220,22 @@ void moveToGlobalPosition(Point3f target)
     double maxSpeed = 100.0;
     if(distance > 1.2)
     {
-        movingSpeed = maxSpeed * 0.85;
+        movingSpeed = maxSpeed * 0.8;
+        returnValue += 1;
     }
-    else if(distance > 0.35)
+    else if(distance > 0.17)
     {
-        movingSpeed = distance/1.2 * 0.85 * maxSpeed;
+        movingSpeed = distance/1.2 * 0.8 * maxSpeed;
+        returnValue += 2;
+    }
+    else if(distance > 0.08)
+    {
+        movingSpeed = maxSpeed * 0.15;
+        returnValue += 3;
     }
     else
     {
-        movingSpeed = maxSpeed * 0.15;
+	returnValue +=100;
     }
     
     speedA = - movingSpeed * sin(moveDir);
@@ -225,25 +248,32 @@ void moveToGlobalPosition(Point3f target)
     if(deltaRotation > 1.2)
     {
         rotationSpeed = maxSpeed * 0.3;
+	returnValue += 10;
     }
     else if(deltaRotation > 0.35)
     {
         rotationSpeed = rotationSpeed/1.2 * 0.3 * maxSpeed;
+        returnValue += 20;
+    }
+    else if(deltaRotation > 0.07)
+    {
+        rotationSpeed = maxSpeed * 0.15;
+        returnValue += 30;
     }
     else
     {
-        rotationSpeed = maxSpeed * 0.8;
+        returnValue += 100;
     }
     speedA += rotationSpeed;
     speedB += rotationSpeed;
     speedC += rotationSpeed;
     speedD += rotationSpeed;
 
-    std::string msg = "S A" + std::to_string((int)speedA) + " B" + std::to_string((int)speedB) + " C" + std::to_string((int)speedC) +" D" + std::to_string((int)speedD) + "\n";
+    std::string msg = "S A" + std::to_string((int)speedA) + " B" + std::to_string((int)speedB) + " C" + std::to_string((int)speedC) +" D" + std::to_string((int)speedD) + " @";
     //unsigned char msg[] = { 'H', 'e', 'l', 'l', 'o', '\n' };
     write(MKGGENfd, msg.c_str(), sizeof(msg.c_str()));
+    return returnValue;
     //https://blog.csdn.net/qq_38410730/article/details/103272396
-    
 }
 
 // Point 
@@ -313,6 +343,35 @@ Point templateMatching(Mat src)//return the value of x y for robot to move
     waitKey(5);
 }
 void setSerialMKSGEN(int fd,struct termios *tty);
+
+bool getQRcodeInfo(Mat img)
+{
+    QRCodeDetector qrDecoder = QRCodeDetector::QRCodeDetector();
+    Mat bbox, rectifiedImage;
+    std::string data = qrDecoder.detectAndDecode(img, bbox, rectifiedImage);
+    if(data.length()>0)
+    {
+        std::cout << "Decoded Data : " << data <<std::endl;
+        rectifiedImage.convertTo(rectifiedImage, CV_8UC3);
+        imshow("Rectified QRCode", rectifiedImage);
+        waitKey(0);
+        return 1;
+    }
+    else
+    {
+        cout << "QR Code not detected" << endl;
+        return 0;
+    }
+}
+Point3f targetPoint(float x, float y, float dir)
+{
+    Point3f target;
+    target.x = x;
+    target.y = y;
+    target.z = dir;
+    return target;
+}
+
 int main(int argc, char **argv)
 {
         //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
@@ -358,7 +417,7 @@ int main(int argc, char **argv)
     struct termios MKGGENtermios;
     if(MKGGENfd == -1) return -1;
     if(tcgetattr(MKGGENfd, &MKGGENtermios) != 0) {
-    return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+    	return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
     }
     setSerialMKSGEN(MKGGENfd,&MKGGENtermios);
     }
@@ -367,6 +426,11 @@ int main(int argc, char **argv)
     while (ros::ok())
     {
         ros::spinOnce();
+        //if(!positionDataUsed)
+	//{
+
+        while(moveToGlobalPosition(targetPoint(3,2,-CV_PI/2)<200);
+		
     //    Mat img;
   //      cap >> img;
 	//    templateMatching(img);
