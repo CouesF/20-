@@ -11,7 +11,7 @@ Create Topic: RobotPositionInfo
 #include"opencv2/imgproc.hpp"//cvtColor
 #include "opencv2/objdetect.hpp"//qrcode detector
 #include "opencv2/imgcodecs.hpp"
-
+#include "zbar.h"
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -28,13 +28,17 @@ Create Topic: RobotPositionInfo
 
 // C library headers
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
 #include <string.h>
 // Linux headers
 #include <fcntl.h> // Contains file controls like O_RDWR
 #include <errno.h> // Error integer and strerror() function
 #include <termios.h> // Contains POSIX terminal control definitions
 #include <unistd.h> // write(), read(), close(), sleep()
-
+#include <sys/ioctl.h>
+#include <getopt.h>
 
 #define imgWidth 640
 #define imgHeight 360
@@ -235,9 +239,9 @@ void setSpeed(float dir, int speed, int rotationSpeed)
     speedB += rotationSpeed;
     speedC += rotationSpeed;
     speedD += rotationSpeed;
-    std::string msg = "SA" + std::to_string((int)speedA) + "B" + std::to_string((int)speedB) + "C" + std::to_string((int)speedC) +"D" + std::to_string((int)speedD) + "@";
+    std::string msg = "S A" + std::to_string((int)speedA) + " B" + std::to_string((int)speedB) + " C" + std::to_string((int)speedC) +" D" + std::to_string((int)speedD) + " @";
     //unsigned char msg[] = { 'H', 'e', 'l', 'l', 'o', '\n' };
-    std::cout<<msg<<std::endl<<std::endl;
+    std::cout<<msg.c_str()<<std::endl<<std::endl;
     write(MKSGENfd, msg.c_str(), sizeof(msg.c_str()));
 }
 int moveToGlobalPosition(Point3f target)
@@ -332,7 +336,6 @@ void accurateLocalization(Mat src,int color)//used after run to the right positi
     
     
 }
-void setSerialMKSGEN(int fd,struct termios *tty);
 bool getQRcodeInfo(Mat img);//print data and process the data to the array
 Point3f targetPoint(float x, float y, float dir);
 void getTemplate();
@@ -371,22 +374,51 @@ int main(int argc, char **argv)
         }
         setCamera(&qrCodeCap, imgWidth, imgHeight, 2,qrCodeCam);
     
-       
+      //------------------------------------------------------// 
        	//Serial Open & settings
-        MKSGENfd = open(MKSGEN.c_str(),O_RDWR|O_NOCTTY);
-        struct termios MKSGENtermios;
+        MKSGENfd = open(MKSGEN.c_str(),O_RDWR | O_NOCTTY | O_SYNC);
+        struct termios tty;
         if(MKSGENfd == -1)
 	{
             printf("MKSGEN open failed\n");
             return -1;
 	}
-        if(tcgetattr(MKSGENfd, &MKSGENtermios) != 0) {
+        if(tcgetattr(MKSGENfd, &tty) < 0) 
+	{
             return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
         }
-        setSerialMKSGEN(MKSGENfd,&MKSGENtermios);
+        cfsetispeed(&tty,B115200);
+	cfsetospeed(&tty,B115200);
+        tty.c_iflag &= ~IGNBRK;                 // no break processing
+        tty.c_lflag = 0;                        // no signal characters
+        tty.c_oflag = 0;                        // no remapping
+        tty.c_cc[VMIN] = 0;                     // no blocking
+        tty.c_cc[VTIME] = 0;                    // no read timeout
+        tty.c_iflag &= ~(IXON | IXOFF | IXANY); // no xon / xoff control
+        tty.c_cflag |= CLOCAL | CREAD;          // ignore modem control
+        tty.c_cflag &= ~CRTSCTS;                // no RTS/CTS flow control
+// data bits
+    tty.c_cflag &= ~CSIZE;
+    tty.c_cflag |= CS8;
 
+    // parity bits
+    tty.c_cflag &= ~(PARENB | PARODD);
 
-        MKSDLCfd = open(MKSDLC.c_str(),O_RDWR|O_NOCTTY);
+    // stop bits
+    tty.c_cflag &= ~CSTOPB;
+    if(tcsetattr(MKSGENfd,TCSAFLUSH, &tty) < 0) {
+        return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+    }
+
+    write(MKSGENfd,"S A20 B-20 C-20 D20 @",sizeof("S A20 B-20 C-20 D20 @"));
+    printf("test\n\n");
+    sleepTime(5);
+    printf("test\n\n");
+      //------------------------------------------------------// 
+
+        
+/*	
+	MKSDLCfd = open(MKSDLC.c_str(),O_RDWR|O_NOCTTY);
         struct termios MKSDLCtermios;
         if(MKSDLCfd == -1)
 	{
@@ -397,16 +429,16 @@ int main(int argc, char **argv)
             return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
         }
         setSerialMKSGEN(MKSDLCfd,&MKSDLCtermios);
-
+*/
 
         printf("templateCam & qrCodeCam & MKSDLC & MKSGEN \n opened successfully\n");
     
     setSpeed(0,0,0);
-    printf("ooooo\n\n\n");
+    printf("iiiiiooooo\n\n\n");
     sleepTime(5);
     
     setSpeed(0,40,0);
-    printf("ooooo\n\n\n");
+    printf("oooohjgffgbo\n\n\n");
     sleepTime(5);
     
     setSpeed(0,0,0);
@@ -460,23 +492,6 @@ int main(int argc, char **argv)
 }
 
 
-void setSerialMKSGEN(int fd,struct termios *tty)
-{
-    tcflush(fd, TCIOFLUSH);
-    (*tty).c_cflag &= ~PARENB;
-    (*tty).c_cflag &= ~CSTOPB;
-    (*tty).c_cflag |= CS8;
-    (*tty).c_lflag &= ~ECHO;
-    (*tty).c_cc[VTIME] = 1;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
-    (*tty).c_cc[VMIN] = 10;
-    
-    cfsetispeed(tty,B115200); /*设置结构termios输入波特率为19200Bps*/
-    cfsetospeed(tty,B115200);   /*fd应该是文件描述的意思*/
-    if (tcsetattr(fd, TCSANOW, tty) != 0) {
-        return ;//printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
-    }
-    tcflush(fd,TCIOFLUSH);  //设置后flush
-}
 int setCamera(VideoCapture *cap, unsigned int _width, unsigned int _height, unsigned int _buffersize,std::string Cam)
 {
     (*cap).set(CAP_PROP_FRAME_WIDTH,_width);
