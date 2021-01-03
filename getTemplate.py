@@ -2,7 +2,7 @@
 import serial
 import math
 import time
-import cv2
+#import cv2
 import numpy as np
 pi = 3.141592653589793
 
@@ -55,7 +55,7 @@ def click_event(event, x, y, flags, param):
 
 
     
-def getTemplate():
+'''def getTemplate():
 
     cam = cv2.VideoCapture(templateCam)
     
@@ -96,7 +96,7 @@ def getTemplate():
 
     cam.release()
     cv2.destroyAllWindows()
-
+'''
 
 def setSpeed():
     mesg = str.encode('S A'+str(int(speed[0]))+' B'+str(int(speed[1]))+' C'+str(int(speed[2]))+' D'+str(int(speed[3]))+' @')

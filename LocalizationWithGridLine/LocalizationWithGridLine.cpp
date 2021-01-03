@@ -47,7 +47,7 @@ Create Topic: RobotPositionInfo
 
 using namespace cv;
 
-std::string localizationCam("/dev/video0"); 
+std::string localizationCam("/dev/cam4GlobalLocalization"); 
 //TODO IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
 
 Point2f perspectiveTransformOriginPoint[4] = {Point2f(155,0),Point2f(485,0),Point2f(0,320),Point2f(640,320)};
