@@ -33,7 +33,7 @@ Create Topic: RobotPositionInfo
 #include <fcntl.h> // Contains file controls like O_RDWR
 #include <errno.h> // Error integer and strerror() function
 #include <termios.h> // Contains POSIX terminal control definitions
-#include <unistd.h> // write(), read(), close()
+#include <unistd.h> // write(), read(), close(), sleep()
 
 
 #define imgWidth 640
@@ -54,20 +54,33 @@ Create Topic: RobotPositionInfo
 #define areaXCount imgWidth/imgPartitionSize+3
 #define areaYCount imgWidth/imgPartitionSize+3
 #define gaussianSumMax 800//used for debug draw on canvas
+
+
+
+//for the order of material
+#define red 0
+#define green 1
+#define blue 2
+short colorOrder[3];6
+
 int cutX1 = 10,
     cutY1 = 10,     
     cutX2 = 300, 
     cutY2 = 300;
 
-int MKGGENfd;
+int MKSGENfd,MKSDLCfd;
 using namespace cv;
-Rect imgResize(cutX1,cutY1,cutX2,cutY2);//TODO: 
+Rect imgResize(cutX1,cutY1,cutX2,cutY2);//DONE: 
 
-std::string templateCam("/dev/video0"); 
-std::string MKGGEN("/dev/MKGGEN");
+std::string templateCam("/dev/cam4TemplateMatching"); 
+std::string qrCodeCam("/dev/cam4QRCode"); 
+std::string MKSGEN("/dev/MKSGEN");
+std::string MKSDLC("/dev/MKSDLC");
 std::string blueTemplatePath = "/home/coues/template/blueTemplate.png";
 std::string greenTemplatePath = "/home/coues/template/greenTemplate.png";
 std::string redTemplatePath = "/home/coues/template/redTemplate.png";
+
+//Rect templateArea(templateX,templateY,templateWidth,templateHeight);
 Mat blueTemplate, greenTemplate, redTemplate;
 int blueLowH = 100, blueHighH = 124, 
     greenLowH = 35, greenHighH = 77, 
@@ -86,7 +99,8 @@ Mat originTemplate;
 Mat temPlates[200];
 
 bool positionDataUsed;
-
+#define maxSpeed 100.0
+#define ratioFromPixel2Steps 20 //TODO:
 
 Mat theMap(500,500,CV_8UC3,Scalar(255,255,255,0.5));
 float robotCurrentGlobalPosition[3];
@@ -112,7 +126,7 @@ void arrayCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 	return;
 }
 
-//TODO: IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
+//DONE: IMPORTANT : 100pixels = 30CM (height 60cm, Direction 30 degrees)
 Mat convertBGR2HSV(Mat originImg)
 {
     Mat hsvImg;
@@ -203,21 +217,38 @@ Point circleCentralPointDetectionBGR(Mat img)
     imshow("circleDetect",croppedImg);
     waitKey(5);
 }
-float distance(Point2f point1,Point2f point2)
+float dist(Point2f point1,Point2f point2)
 {
     return sqrt(pow(point1.x-point2.x,2)+pow(point1.y-point2.y,2));
+}
+void setSpeed(float dir, int speed, int rotationSpeed)
+{
+    double speedA, speedB, speedC, speedD;
+    speedA = - speed * sin(dir);
+    speedB = speed * cos(dir);
+    speedC = speed * sin(dir);
+    speedD = - speed * cos(dir);
+    speedA += rotationSpeed;
+    speedB += rotationSpeed;
+    speedC += rotationSpeed;
+    speedD += rotationSpeed;
+    std::string msg = "S A" + std::to_string((int)speedA) + " B" + std::to_string((int)speedB) + " C" + std::to_string((int)speedC) +" D" + std::to_string((int)speedD) + " @";
+    //unsigned char msg[] = { 'H', 'e', 'l', 'l', 'o', '\n' };
+    write(MKSGENfd, msg.c_str(), sizeof(msg.c_str()));
 }
 int moveToGlobalPosition(Point3f target)
 {
     int returnValue = 0;
-    double speedA, speedB, speedC, speedD;
     double deltaX = target.x - robotCurrentGlobalPosition[0];
     double deltaY = target.y - robotCurrentGlobalPosition[1];
     double moveDir = atan2(deltaY,deltaX);
     moveDir += CV_PI / 4;
     double distance = sqrt(deltaX * deltaX + deltaY * deltaY);
-    double movingSpeed;// =  / ;
-    double maxSpeed = 100.0;
+    double movingSpeed;
+    double deltaRotation = target.z - robotCurrentGlobalPosition[2];
+    int rotationSpeed = int(deltaRotation * 15.0);
+
+    
     if(distance > 1.2)
     {
         movingSpeed = maxSpeed * 0.8;
@@ -235,17 +266,11 @@ int moveToGlobalPosition(Point3f target)
     }
     else
     {
-	returnValue +=100;
+	    returnValue +=100;
+        movingSpeed = 0;
     }
     
-    speedA = - movingSpeed * sin(moveDir);
-    speedB = movingSpeed * cos(moveDir);
-    speedC = movingSpeed * sin(moveDir);
-    speedD = - movingSpeed * cos(moveDir);
-
-    double deltaRotation = target.z - robotCurrentGlobalPosition[2];
-    int rotationSpeed = int(deltaRotation * 15.0);
-    if(deltaRotation > 1.2)
+        if(deltaRotation > 1.2)
     {
         rotationSpeed = maxSpeed * 0.3;
 	returnValue += 10;
@@ -263,15 +288,10 @@ int moveToGlobalPosition(Point3f target)
     else
     {
         returnValue += 100;
+        rotationSpeed = 0;
     }
-    speedA += rotationSpeed;
-    speedB += rotationSpeed;
-    speedC += rotationSpeed;
-    speedD += rotationSpeed;
 
-    std::string msg = "S A" + std::to_string((int)speedA) + " B" + std::to_string((int)speedB) + " C" + std::to_string((int)speedC) +" D" + std::to_string((int)speedD) + " @";
-    //unsigned char msg[] = { 'H', 'e', 'l', 'l', 'o', '\n' };
-    write(MKGGENfd, msg.c_str(), sizeof(msg.c_str()));
+    setSpeed(moveDir,movingSpeed,rotationSpeed);
     return returnValue;
     //https://blog.csdn.net/qq_38410730/article/details/103272396
 }
@@ -284,104 +304,37 @@ int moveToGlobalPosition(Point3f target)
 //     inRange(frame_HSV, Scalar(low_H, low_S, low_V), Scalar(high_H, high_S, high_V), frame_threshold);
 
 // }
-int setCamera(VideoCapture *cap, unsigned int _width, unsigned int _height, unsigned int _buffersize)
+int setCamera(VideoCapture *cap, unsigned int _width, unsigned int _height, unsigned int _buffersize,std::string Cam);
+void accurateLocalization(Mat src,int color)//used after run to the right position
 {
-    (*cap).set(CAP_PROP_FRAME_WIDTH,_width);
-    (*cap).set(CAP_PROP_FRAME_HEIGHT,_height);
-    (*cap).set(CV_CAP_PROP_BUFFERSIZE, _buffersize);//only stores (n) frames in cache;
-    std::string cmd1("v4l2-ctl -d ");
-    std::string cmd11(" -c exposure_auto=1");
-    std::string cmd12(" exposure_absolute=78");
-    std::string cmd13(" brightness=60");
-    std::string cmd14(" contrast=30");
-    system((cmd1 + templateCam + cmd11).c_str());
-    system((cmd1 + templateCam + cmd12).c_str());
-    system((cmd1 + templateCam + cmd13).c_str());
-    system((cmd1 + templateCam + cmd14).c_str());
+    Point templatePoint = templateMatching(src,color);
+    int deltaX,deltaY;
+    deltaX = templatePoint.x - 320;
+    deltaY = templatePoint.y - 240;
+    float stepX = deltaX * ratioFromPixel2Steps;
+    float stepY = deltaY * ratioFromPixel2Steps;
+    double distance = sqrt(pow(deltaX,2),pow(deltaY,2));
+    setMovement((int)stepX,(int)stepY,0);
+    sleepTime(distance * 0.1);
 
-    std::cout<<"default exposure: "<<(*cap).get(CAP_PROP_EXPOSURE)<<std::endl;
-    std::cout<<"default contrast: "<<(*cap).get(CAP_PROP_CONTRAST)<<std::endl;
-    std::cout<<"default brightne: "<<(*cap).get(CAP_PROP_BRIGHTNESS)<<std::endl;
+    printf("moveStoped!!!!!!!!!!!!!!!!!!!!!!!\n\n");
+    sleepTime(3);
+    
+    
 }
-Point templateMatching(Mat src)//return the value of x y for robot to move
-{
-    
-
-    imshow("origin",src);
-    Mat hsv,hue;
-    //Mat croppedImg = img(imgResize);
-    medianBlur(src,src,3);
-    imshow("medianBlur",src);
-    hsv = convertBGR2HSV(src);
-    imshow("HSV",hsv);
-    hue = getHueChanel(hsv);
-    imshow("HueChannel",hue);
-
-    Mat blueImg,redImg1,redImg2,redImg,greenImg;
-
-    inRange(hsv, blueLow, blueHigh, blueImg);
-    inRange(hsv, greenLow, greenHigh, greenImg);
-    inRange(hsv, redLow1, redHigh1, redImg1);
-    inRange(hsv, redLow2, redHigh2, redImg2);
-    redImg = redImg1 | redImg2;
-   
-    
-    circleCentralPointDetection(redImg);
-
-    imshow("greenTreshold",greenImg);
-    medianBlur(greenImg,greenImg,7);
-    imshow("greenBlurTreshold",greenImg);
-    
-    imshow("redThreshold",redImg);
-    medianBlur(redImg,redImg,7);
-    imshow("redBlurThreshold",redImg);
-    
-    imshow("blueTreshold",blueImg);
-    medianBlur(blueImg,blueImg,7);
-    imshow("blueBlurTreshold",blueImg);
-    
-    waitKey(5);
-}
+void setMovement(int x, int y, float rotation);
+void sleepTime(float seconds);
+Point templateMatching(Mat src,int color);//return the value of x y of the center position for template
 void setSerialMKSGEN(int fd,struct termios *tty);
-
-bool getQRcodeInfo(Mat img)
-{
-    QRCodeDetector qrDecoder = QRCodeDetector::QRCodeDetector();
-    Mat bbox, rectifiedImage;
-    std::string data = qrDecoder.detectAndDecode(img, bbox, rectifiedImage);
-    if(data.length()>0)
-    {
-        std::cout << "Decoded Data : " << data <<std::endl;
-        rectifiedImage.convertTo(rectifiedImage, CV_8UC3);
-        imshow("Rectified QRCode", rectifiedImage);
-        waitKey(0);
-        return 1;
-    }
-    else
-    {
-        cout << "QR Code not detected" << endl;
-        return 0;
-    }
-}
-Point3f targetPoint(float x, float y, float dir)
-{
-    Point3f target;
-    target.x = x;
-    target.y = y;
-    target.z = dir;
-    return target;
-}
+bool getQRcodeInfo(Mat img);//print data and process the data to the array
+Point3f targetPoint(float x, float y, float dir);
+void getTemplate();
 
 int main(int argc, char **argv)
 {
         //cv::cvtColor(img,grayImg,cv::COLOR_RGB2GRAY);
     //imshow("gray",grayImg);
     //undistort(image,undistortedImg,cameraMatrix,distortionCoefficients);
-    
-   
-
-
-
     //Ros configuration_publisher
     ros::init(argc,argv, "main");
     ros::NodeHandle n;
@@ -392,53 +345,81 @@ int main(int argc, char **argv)
 
     
     if(1)goto tempLabel;
+    
     {
-    // cap initialization and setting
-    VideoCapture cap;
-    cap.open(templateCam);
-    if(!cap.isOpened()){ 
-        std::cout << "cam openning failed" << std::endl;
-	    return -1;
-    }
-    setCamera(&cap, imgWidth, imgHeight, 2);
+        // cap initialization and setting
+        VideoCapture templateCap;
+        templateCap.open(templateCam);
+        if(!templateCap.isOpened()){
+            std::cout << "template cam openning failed" << std::endl;
+	        return -1;
+        }
+        setCamera(&templateCap, imgWidth, imgHeight, 2, templateCam);
+        
+        VideoCapture qrCodeCap;
+        qrCodeCap.open(qrCodeCam);
+        if(!qrCodeCap.isOpened()){
+            std::cout << "qrcode cam openning failed" << std::endl;
+	        return -1;
+        }
+        setCamera(&qrCodeCap, imgWidth, imgHeight, 2,qrCodeCap);
 
     
     
     
-    //template initialize
-    blueTemplate = imread(blueTemplatePath), 
-    greenTemplate = imread(greenTemplatePath), 
-    redTemplate = imread(redTemplatePath);
+        
 
 
 
-    //Serial Open & settings
-    MKGGENfd = open(MKGGEN.c_str(),O_RDWR);
-    struct termios MKGGENtermios;
-    if(MKGGENfd == -1) return -1;
-    if(tcgetattr(MKGGENfd, &MKGGENtermios) != 0) {
-    	return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+        //Serial Open & settings
+        MKSGENfd = open(MKSGEN.c_str(),O_RDWR);
+        struct termios MKSGENtermios;
+        if(MKSGENfd == -1) return -1;
+        if(tcgetattr(MKSGENfd, &MKSGENtermios) != 0) {
+            return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+        }
+        setSerialMKSGEN(MKSGENfd,&MKSGENtermios);
+
+        MKSDLCfd = open(MKSDLC.c_str(),O_RDWR);
+        struct termios MKSDLCtermios;
+        if(MKSDLCfd == -1) return -1;
+        if(tcgetattr(MKSDLCfd, &MKSDLCtermios) != 0) {
+            return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+        }
+        setSerialMKSGEN(MKSDLCfd,&MKSDLCtermios);
+
+        printf("templateCam & qrCodeCam & MKSDLC & MKSGEN \n opened successfully\n");
+
     }
-    setSerialMKSGEN(MKGGENfd,&MKGGENtermios);
-    }
+
     tempLabel:;
 
     while (ros::ok())
     {
         ros::spinOnce();
-        //if(!positionDataUsed)
+        if(!positionDataUsed)
+        {
+            positionDataUsed = !positionDataUsed;
+        }
+        else
+        {
+            printf("No Global Data\n");
+        }
+        
 	//{
 
-        while(moveToGlobalPosition(targetPoint(3,2,-CV_PI/2)<200);
+        while(moveToGlobalPosition(targetPoint(3,2,-CV_PI/2)<200));
+        printf("succussesfully moved!\n");
+        waitKey(0);
 		
     //    Mat img;
-  //      cap >> img;
+    //      cap >> img;
 	//    templateMatching(img);
 	    //get the stream and cut the im
         //for(int i = 1;i <= 1;i++)
         //while(cap.grab()){}
 
-//	circleCentralPointDetectionBGR(img);
+    //	circleCentralPointDetectionBGR(img);
         imshow("mappppp",theMap);	
    	waitKey(100);
     }
@@ -462,4 +443,133 @@ void setSerialMKSGEN(int fd,struct termios *tty)
         return ;//printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
     }
     tcflush(fd,TCIOFLUSH);  //设置后flush
+}
+int setCamera(VideoCapture *cap, unsigned int _width, unsigned int _height, unsigned int _buffersize,std::string Cam)
+{
+    (*cap).set(CAP_PROP_FRAME_WIDTH,_width);
+    (*cap).set(CAP_PROP_FRAME_HEIGHT,_height);
+    (*cap).set(CV_CAP_PROP_BUFFERSIZE, _buffersize);//only stores (n) frames in cache;
+    std::string cmd1("v4l2-ctl -d ");
+    std::string cmd11(" -c exposure_auto=1");
+    std::string cmd12(" exposure_absolute=78");
+    std::string cmd13(" brightness=60");
+    std::string cmd14(" contrast=30");
+    system((cmd1 + Cam + cmd11).c_str());
+    system((cmd1 + Cam + cmd12).c_str());
+    system((cmd1 + Cam + cmd13).c_str());
+    system((cmd1 + Cam + cmd14).c_str());
+
+    std::cout<<"default exposure: "<<(*cap).get(CAP_PROP_EXPOSURE)<<std::endl;
+    std::cout<<"default contrast: "<<(*cap).get(CAP_PROP_CONTRAST)<<std::endl;
+    std::cout<<"default brightne: "<<(*cap).get(CAP_PROP_BRIGHTNESS)<<std::endl;
+}
+void setMovement(int x, int y, float rotation)
+{
+    std::string msg = "P X" + std::to_string((int)x) + " Y" + std::to_string((int)y) + " R" + std::to_string((int)rotation) +" @";
+    //unsigned char msg[] = { 'H', 'e', 'l', 'l', 'o', '\n' };
+    write(MKSGENfd, msg.c_str(), sizeof(msg.c_str()));
+    std::cout << msg << std::endl;
+}
+
+void sleepTime(float seconds)
+{
+    unsigned int microsecond = 1000000;
+    seconds *= microsecond
+    usleep(seconds);//sleeps for 3 second
+}
+Point templateMatching(Mat src,int color)//return the value of x y of the center position for template
+{
+    Mat _template,matchingResult;
+    switch (color)
+    {
+    case red:
+        _template = redTemplate;
+        break;
+    case green:
+        _template = greenTemplate;
+        break;
+    case blue:
+        _template = blueTemplate;
+        break;
+    default:
+        break;
+    }
+    matchTemplate(src,_template,matchingResult,TM_CCOEFF);
+    double minVal;
+    double maxVal;
+    Point minIdx;
+    Point maxIdx;
+    minMaxLoc(matchingResult,&minVal, &maxVal, &minIdx, &maxIdx);
+    circle(src,maxIdx,5,(0,0,255),-1);
+    imshow("templateMatching",src);
+    waitKey(0);
+    return maxIdx;
+    // Mat hsv,hue;
+    // //Mat croppedImg = img(imgResize);
+    // medianBlur(src,src,3);
+    // imshow("medianBlur",src);
+    // hsv = convertBGR2HSV(src);
+    // imshow("HSV",hsv);
+    // hue = getHueChanel(hsv);
+    // imshow("HueChannel",hue);
+
+    // Mat blueImg,redImg1,redImg2,redImg,greenImg;
+
+    // inRange(hsv, blueLow, blueHigh, blueImg);
+    // inRange(hsv, greenLow, greenHigh, greenImg);
+    // inRange(hsv, redLow1, redHigh1, redImg1);
+    // inRange(hsv, redLow2, redHigh2, redImg2);
+    // redImg = redImg1 | redImg2;
+   
+    
+    // circleCentralPointDetection(redImg);
+
+    // imshow("greenTreshold",greenImg);
+    // medianBlur(greenImg,greenImg,7);
+    // imshow("greenBlurTreshold",greenImg);
+    
+    // imshow("redThreshold",redImg);
+    // medianBlur(redImg,redImg,7);
+    // imshow("redBlurThreshold",redImg);
+    
+    // imshow("blueTreshold",blueImg);
+    // medianBlur(blueImg,blueImg,7);
+    // imshow("blueBlurTreshold",blueImg);
+    
+    // waitKey(5);
+}
+bool getQRcodeInfo(Mat img)
+{
+    QRCodeDetector qrDecoder = QRCodeDetector::QRCodeDetector();
+    Mat bbox, rectifiedImage;
+    std::string data = qrDecoder.detectAndDecode(img, bbox, rectifiedImage);
+    if(data.length()>0)//TODO:
+    {
+        std::cout << "Decoded Data : " << data <<std::endl;
+        rectifiedImage.convertTo(rectifiedImage, CV_8UC3);
+        imshow("Rectified QRCode", rectifiedImage);
+        waitKey(0);
+        return 1;
+    }
+    else
+    {
+        cout << "QR Code not detected" << endl;
+        return 0;
+    }
+}
+Point3f targetPoint(float x, float y, float dir)
+{
+    Point3f target;
+    target.x = x;
+    target.y = y;
+    target.z = dir;
+    return target;
+}
+void getTemplate()
+{
+    //template initialize. Read & crop
+    blueTemplate = (imread(blueTemplatePath.c_str()))(templateArea),
+    greenTemplate = (imread(greenTemplatePath.c_str()))(templateArea), 
+    redTemplate = (imread(redTemplatePath.c_str()))(templateArea);
+
 }
