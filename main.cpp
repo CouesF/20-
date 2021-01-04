@@ -11,7 +11,7 @@ Create Topic: RobotPositionInfo
 #include"opencv2/imgproc.hpp"//cvtColor
 #include "opencv2/objdetect.hpp"//qrcode detector
 #include "opencv2/imgcodecs.hpp"
-#include "zbar.h"
+//#include "zbar.h"
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -377,7 +377,8 @@ int main(int argc, char **argv)
       //------------------------------------------------------// 
        	//Serial Open & settings
         MKSGENfd = open(MKSGEN.c_str(),O_RDWR | O_NOCTTY | O_SYNC);
-        struct termios tty;
+        tcflush(MKSGENfd,TCIOFLUSH);
+	struct termios tty;
         if(MKSGENfd == -1)
 	{
             printf("MKSGEN open failed\n");
@@ -387,33 +388,38 @@ int main(int argc, char **argv)
 	{
             return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
         }
-        cfsetispeed(&tty,B115200);
-	cfsetospeed(&tty,B115200);
-        tty.c_iflag &= ~IGNBRK;                 // no break processing
-        tty.c_lflag = 0;                        // no signal characters
-        tty.c_oflag = 0;                        // no remapping
-        tty.c_cc[VMIN] = 0;                     // no blocking
-        tty.c_cc[VTIME] = 0;                    // no read timeout
-        tty.c_iflag &= ~(IXON | IXOFF | IXANY); // no xon / xoff control
-        tty.c_cflag |= CLOCAL | CREAD;          // ignore modem control
-        tty.c_cflag &= ~CRTSCTS;                // no RTS/CTS flow control
-// data bits
-    tty.c_cflag &= ~CSIZE;
-    tty.c_cflag |= CS8;
-
-    // parity bits
-    tty.c_cflag &= ~(PARENB | PARODD);
-
-    // stop bits
+        if(cfsetispeed(&tty,B115200)<0)printf("hi\n");
+        if(cfsetospeed(&tty,B115200)<0)printf("hi\n");
+	//cfsetospeed(&tty,B115200);
+        tty.c_cc[VMIN] = 1;                     // no blockingi
+        tty.c_cc[VTIME] = 1;                    // no read timeout
+    
+    //raw mode
+           tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP| IXOFF | IXANY | INLCR | IGNCR | ICRNL | IXON);
+           tty.c_oflag &= ~OPOST;
+           tty.c_lflag &= ~(ECHO | ECHONL|ECHOE | ICANON | ISIG | IEXTEN);
+           tty.c_cflag &= ~(CSIZE | PARENB);
+           tty.c_cflag |= CS8;
+    
+	   
+	   // stop bits
     tty.c_cflag &= ~CSTOPB;
-    if(tcsetattr(MKSGENfd,TCSAFLUSH, &tty) < 0) {
+    
+    
+    if(tcsetattr(MKSGENfd,TCSANOW, &tty) < 0) {
         return -1;//printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
     }
-
+    tcflush(MKSGENfd,TCIOFLUSH);
     write(MKSGENfd,"S A20 B-20 C-20 D20 @",sizeof("S A20 B-20 C-20 D20 @"));
-    printf("test\n\n");
+    
+    printf("tegggfgfgst\n\n");
+    char readbuf[256];
+    int nnn = read(MKSGENfd,&readbuf,sizeof(readbuf));
+    std::cout<<readbuf<<std::endl;
     sleepTime(5);
     printf("test\n\n");
+    close(MKSGENfd);
+    return -1;
       //------------------------------------------------------// 
 
         

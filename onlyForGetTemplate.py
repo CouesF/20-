@@ -30,73 +30,32 @@ botCurGlobalPos = [0,0,0] #x,y,dir float
 firstLevelOrder = [0,0,0]
 secondLevelOrder = [0,0,0]
 
-######################################TODO:
-materialPosition = np.zeros((4, 3, 3), dtype=float)#area-color-xydir
-
-
-
-
-
-
-
-#####################################TODO:
-
-def callback(rawPositionData):
-    #rospy.loginfo(rospy.get_caller_id() + "i heard %s", rawPositionData.data)
-    botCurGlobalPos[0] = rawPositionData.data[0]
-    botCurGlobalPos[1] = rawPositionData.data[1]
-    botCurGlobalPos[2] = rawPositionData.data[2]
-    #print(botCurGlobalPos)
-
-def openListener():
-    rospy.init_node('mainPython',anonymous=True)
-    rospy.Subscriber('RobotPositionInfo',Float32MultiArray,callback)
-    #rospy.spin()
-
-
-def getSpeed(direction, speedG, rotation):
-    """
-    docstring
-    """
-    direction = direction + (pi / 4.0)
-    speed[0] = -speedG * math.sin(direction)
-    speed[1] = speedG * math.cos(direction)
-    speed[2] = speedG * math.sin(direction)
-    speed[3] = -speedG * math.cos(direction)
-
-    speed[0] += rotation
-    speed[1] += rotation
-    speed[2] += rotation
-    speed[3] += rotation
-    pass
-
-def click_event(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        clickX = x
-        clickY = y
-        print(clickX,",",clickY)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        strXY = str(x)+", "+str(y)
-        cv2.putText(frame, strXY, (x,y), font, 0.5, (255,255,0), 2)
-        cv2.imshow("image", frame)
-
 
     
-def getTemplate(color):
+def getTemplate():
+
+    
+    setMovement(0,-100,0) #move backward
+    time.sleep(4)
+
     for i in range(1,4):
-        _,frame = templateCap.read()
+        frame = templateCap.read()
+    
     cv2.imshow('image',frame)
     cv2.setMouseCallback("image", click_event)#https://stackoverflow.com/questions/28327020/opencv-detect-mouse-position-clicking-over-a-picture
     cv2.waitKey(0)
     template = frame[clickY-templateWidth:clickY+templateWidth,clickX-templateWidth:clickX+templateWidth]
-    cv2.imshow('template',template)
-    cv2.imwrite('/home/coues/template/blueTemplate.png',template)
-    cv2.waitKey(0)
+    cv2.imshow('/home/coues/template/blueTemplate.png',template)
+    cv2.imwrite(filename, image)
+    cv2.waitKey(5)
     
-def getTemplatePos():
+
+    setMovement(0,-100,0)
+    time.sleep(4)
+
     for i in range(1,4):
-        _,frame = templateCap.read()
-    w, h = template.shape[::-1]
+        frame = templateCap.read()
+    w, h = template.shape[::-1] 
     matchingResult = cv2.matchTemplate(frame,template,cv2.TM_CCOEFF_NORMED) 
     min_v, max_v, min_pt, max_pt = cv2.minMaxLoc(matchingResult)
     frame = cv2.circle(frame, max_pt, 5, (255,0,0), 2)
@@ -114,11 +73,6 @@ def getTemplatePos():
     templateCap.release()
     cv2.destroyAllWindows()
 
-def readTemplate():
-    redTemplate = imread('/home/coues/template/redTemplate.png')
-    greenTemplate = imread('/home/coues/template/greenTemplate.png')
-    blueTemplate = imread('/home/coues/template/blueTemplate.png')
-    pass
 
 def setSpeed(_direction,_speed,_rotation):
     getSpeed(_direction,_speed,_rotation)
