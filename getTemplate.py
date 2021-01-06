@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# main program
 #import cv2
 import serial
 import math

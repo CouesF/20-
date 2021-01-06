@@ -30,7 +30,27 @@ botCurGlobalPos = [0,0,0] #x,y,dir float
 firstLevelOrder = [0,0,0]
 secondLevelOrder = [0,0,0]
 
-
+baud = 115200
+def openGen():
+    genSerial = serial.Serial(
+        port=MKSGEN,\
+        baudrate=baud,\
+        bytesize=serial.EIGHTBITS,\
+        parity=serial.PARITY_NONE,\
+        stopbits=serial.STOPBITS_ONE,\
+        timeout=5)
+    print(genSerial.name)         # check which port was really used
+    pass
+def openDlc():
+    dlcSerial = serial.Serial(
+        port=MKSDLC,\
+        baudrate=baud,\
+        bytesize=serial.EIGHTBITS,\
+        parity=serial.PARITY_NONE,\
+        stopbits=serial.STOPBITS_ONE,\
+        timeout=5)
+    print(dlcSerial.name)         # check which port was really used
+    pass
     
 def getTemplate():
 
@@ -81,59 +101,12 @@ def setSpeed(_direction,_speed,_rotation):
     genSerial.write(mesg)
     print(mesg)
 
-def setMovement(x,y,r):
-    mesg = str.encode('P X'+str(int(x))+' Y'+str(int(y))+' R'+str(int(r))+' @')
+def setMovement(_x_,_y_,_r_):
+    mesg = str.encode('P X'+str(int(_x_))+' Y'+str(int(_y_))+' R'+str(int(_r_))+'@')
     genSerial.write(mesg)
     print(mesg)
-#genSerial.write(str.encode('bnbs'))
-#xxx = genSerial.read(5)
-#print((xxx))
-#temp = str.encode('S A50 B50 C50 D50 ')
-#genSerial.write(temp)
-#print(temp)
 
 #getTemplate()
-def moveTo(targetX,targetY,targetDir):#will sent one record of moving data
-    maxSpeed = 100
-    returnValue = 0
-    deltaX = targetX - botCurGlobalPos[0]
-    deltaY = targetY - botCurGlobalPos[1]
-    deltaRotation = targetDir - botCurGlobalPos[2]
-    
-    moveDir = math.atan2(deltaY,deltaX)
-    moveDir += pi / 4.0
-    
-    dist = math.sqrt(math.pow(deltaX,2)+math.pow(deltaY,2))
-    if(dist > 1.2):
-        movingSpeed = maxSpeed * 0.9
-        returnValue += 1
-    elif(dist>0.15):
-        movingSpeed = maxSpeed * dist/1.2
-        returnValue += 2
-    elif(dist>0.08):
-        movingSpeed = maxSpeed * 0.15/1.2
-        returnValue += 3
-    else:
-        movingSpeed = 0
-
-    if(abs(deltaRotation) > pi/2):
-        rotationSpeed = maxSpeed * 0.45
-        returnValue +=10
-    elif(abs(deltaRotation) > pi/8):
-        rotationSpeed = maxSpeed * 0.3
-        returnValue +=20
-    elif(abs(deltaRotation) > pi/15):
-        rotationSpeed = maxSpeed * 0.1
-        returnValue +=30
-    else:
-        rotationSpeed = 0
-    print(moveDir,movingSpeed,deltaRotation,'\n')
-    rotationSpeed *=np.sign(deltaRotation)
-    setSpeed(moveDir,movingSpeed,rotationSpeed)
-
-    return returnValue
-
-    pass
 
 def waitUntilMovedTo(_x,_y,_dir):
     while(moveTo(_x,_y,_dir)!=0):
@@ -142,27 +115,7 @@ def waitUntilMovedTo(_x,_y,_dir):
 
 
 
-baud = 115200
-def openGen():
-    genSerial = serial.Serial(
-        port=MKSGEN,\
-        baudrate=baud,\
-        bytesize=serial.EIGHTBITS,\
-        parity=serial.PARITY_NONE,\
-        stopbits=serial.STOPBITS_ONE,\
-        timeout=5)
-    print(genSerial.name)         # check which port was really used
-    pass
-def openDlc():
-    dlcSerial = serial.Serial(
-        port=MKSDLC,\
-        baudrate=baud,\
-        bytesize=serial.EIGHTBITS,\
-        parity=serial.PARITY_NONE,\
-        stopbits=serial.STOPBITS_ONE,\
-        timeout=5)
-    print(dlcSerial.name)         # check which port was really used
-    pass
+
 
 def test1():
     count = 3
@@ -188,23 +141,7 @@ def test1():
 
    
     pass
-def getAndSaveQrcode():
-    _,imgggg =qrCodeCap.read()
-    cv2.imshow('qrcode',imgggg)
-    cv2.imwrite("qrcode.png",imgggg)
-    pass
-def decodeQRCode():
-    qr = qrtools.QR()
-    qr.decode("qrcode.png")
-    print(qr.data)
-    print(qr.data[0])
-    
-    for i in range(0,3):
-        firstLevelOrder[i] = int(qr.data[i])
-        secondLevelOrder[i] = int(qr.data[i+4])
-        pass
-    print(firstLevelOrder,secondLevelOrder)
-    return qr.data
+
 
 def test4Template():
     cv2.waitKey(0)
