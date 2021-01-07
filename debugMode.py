@@ -10,6 +10,9 @@ from std_msgs.msg import Float32MultiArray
 from std_msgs.msg import MultiArrayDimension
 from std_msgs.msg import MultiArrayLayout
 import qrtools
+
+import tkinter as tk
+from tkinter import *
 pi = 3.141592653589793
 
 clickX = 0
@@ -202,6 +205,12 @@ def decodeQRCode():
     if(flag==False):
         return False
     else:
+        root = tk.Tk()
+        tp = Toplevel(root)
+        tp.attributes('-topmost',True)
+        lb = Label(tp,text=qr.data,font=("Courier",55))
+        lb.pack()
+        tp.update()
         print(firstLevelOrder,secondLevelOrder)
         return True
 def detectAndDecodeQRCode():#TODO:important,not todo
@@ -279,7 +288,63 @@ def unlockClaw():
 def sleepFor(_seconds):
     time.sleep(_seconds)
     pass
+def preCatch(zone):
+    if(zone==1):
+        catchHeight=1
+        sleepHeight=0.5
+    elif(zone==2):
+        catchHeight=4
+        sleepHeight=1.5
+    else:
+        catchHeight=5
+        sleepHeight=2
 
+    lockMotors()
+    clawHeight(catchHeight)
+    sleepFor(sleepHeight)
+    claw(2)
+    setMovement(0,20,0)
+    sleepFor(2)
+    claw(0)
+    setMovement(0,-20,0)
+    sleepFor(2)
+def putToStorage(order):
+    # need to move backward first
+    if(order==0):
+        clawHeight(2)
+        sleepFor(0.6)
+        clawDirection(3)
+        sleepFor(2.6)
+        clawHeight(3)
+        sleepFor(0.3)
+        claw(1)
+        sleepFor(0.3)
+        clawHeight(2)
+        sleepFor(0.3)
+        clawDirection(0)
+    elif(order==1):
+        clawHeight(2)
+        sleepFor(0.6)
+        clawDirection(2)
+        sleepFor(2.3)
+        clawHeight(3)
+        sleepFor(0.3)
+        claw(1)
+        sleepFor(0.3)
+        clawHeight(2)
+        sleepFor(0.3)
+        clawDirection(0)
+    elif(order==2):
+        clawHeight(2)
+        sleepFor(0.05)
+        clawDirection(1)
+        sleepFor(2)
+        clawHeight(3)
+        sleepFor(0.2)
+        claw(1)
+        clawHeight(2)
+        sleepFor(0.3)
+        clawDirection(0)
 def click_event(event, x, y, flags, params): 
   
     # checking for left mouse clicks 
@@ -327,6 +392,7 @@ def debugMode():
                 l-lockMotors,f-unlock\n\
                 x-special;\nj-QRCamForColor\
                 \nq-qrcodeCam;t-templateCam\n\
+                ps-putToStorage\n\
                 o-setSpeed\nquit")
         if(mode == 's'):
             gx,gy,gdir = input('x,'),input('y,'),input('dir')
@@ -340,7 +406,10 @@ def debugMode():
             print('unlockMotors')
             unlockMotors()
             pass
-
+        elif(mode =='ps'):
+            print('putToStorage')
+            putToStorage()
+            pass
         elif(mode =='w'):
             print('waitForStart')
             waitForStart()

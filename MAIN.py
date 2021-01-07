@@ -2,21 +2,25 @@
 import debugMode as a
 import sys
 from subprocess import call,Popen
+
+
 PI = 3.1415926535
+zone1PositionX=[6.8,7.3,7.8]
+firstLayerColor=[0,0,0]
+order=0
 
 # before start
 print("waitForStart\n")
 a.waitForStart()
-print("waitForStart\n")
+
 a.resetToStartStatus()
 a.genSerial.flush()
 
 # start 
-
+print("waitForStart\n")
 a.waitForStart()
 a.camPos(1)
 Popen('./../../../home/coues/StartLoc.sh')
-print('hhhhhhhhhh\n\n\\n\n\n\gggggg\n\n\n\n')
 a.sleepFor(1)
 
 #TODO: open new process
@@ -30,67 +34,110 @@ a.openListener()
 
 ##############################################################
 a.lockMotors()
-print("1\n")
+
+
+#########################
 a.setSpeed(0.75*PI,231,0)
-while(a.botCurGlobalPos[1] <  1.3):#go to the 1 zone cam line
+while(a.botCurGlobalPos[1] <  1.1):# go to the zone1 x-axis
     pass
 print("1\n")
 a.lockMotors()
-a.sleepFor(1.5)
+a.sleepFor(1)
+########################
 a.setSpeed(0.5*PI,300,0)
-while(a.botCurGlobalPos[0] < 3):#getQRcode
+while(a.botCurGlobalPos[0] < 3):# getQRcode
     pass
 print("1\n")
 a.clawHeight(0)
 
+#####################QRCODE
 print('qrCode')
 a.getAndSaveQrcode()
 hasQRCode = a.decodeQRCode()
 while(not hasQRCode):
     print('qrCode')
-    a.sleepFor(0.6)
+    a.sleepFor(0.35)
     a.getAndSaveQrcode()
     hasQRCode = a.decodeQRCode()
-    
-    
     pass
 print(a.firstLevelOrder,a.secondLevelOrder)
 
+
+
 a.clawDirection(0)
-while(a.botCurGlobalPos[0] < 6.8):#match the color
+########################
+while(a.botCurGlobalPos[0] >= zone1PositionX[0]):#match the color
     pass
-a.unlockMotors()
+if(a.firstLevelOrder[order]==firstLayerColor[0]):
+    a.preCatch(1)
+    a.putToStorage(0)
+    order=1
+a.setSpeed(0.5*PI,150,0)
 
-
-sys.exit()
-###################################
-#color
-
-if(a.firstLevelOrder[0]==0):
-    a.clawHeight(1)
-    a.claw(2)
-    a.setMovement(0,6,0)
-    a.sleepFor(1)
-    a.claw(0)
-    a.setMovement(0.,0)
-    a.clawHeight(2)
-    a.clawDirection(3)
-    a.clawHeight(3)
-    a.claw(1)
-    a.clawHeight(2)
-    a.clawDirection(0)
-
-#a.setSpeed(0.5*PI,100,0)
-while(abs(a.botCurGlobalPos[0] - 7.3) >= 0.01):#match the color
+while(a.botCurGlobalPos[0] >=zone1PositionX[1]):#match the color
     pass
-a.lockMotors()
-#color
-a.setSpeed(0.5*PI,100,0)
-while(abs(a.botCurGlobalPos[0] - 7.8) >= 0.01):#match the color
-    pass
-a.lockMotors()
-#color
-a.setSpeed(0.5*PI,100,0)
+if(a.firstLevelOrder[order]==firstLayerColor[1]):
+    a.preCatch(1)
+    a.putToStorage(order)
+    order=+=1
+
+if(order==0):
+    a.preCatch(1)
+    a.putToStorage(order)
+    order=1
+    for i in range(0,1):
+        if(a.firstLevelOrder[j]==firstLayerColor[i]):
+            targetItem=i
+    a.setSpeed(-0.5*PI,150,0)
+    while(a.botCurGlobalPos[0] <= zone1PositionX[targetItem]):
+        a.preCatch(1)
+        a.putToStorage(1)
+        order=2
+    if(targetItem==0):
+        a.setSpeed(0.5*PI,150,0)
+        while(a.botCurGlobalPos[0] <= zone1PositionX[0]):
+    else:
+        a.setSpeed(-0.5*PI,150,0)
+        while(a.botCurGlobalPos[0] >= zone1PositionX[0]):
+    a.preCatch(1)
+    a.putToStorage(2)
+    order=0
+elif(order==1):
+    for i in range(0,2):
+        if(a.firstLevelOrder[j]==firstLayerColor[i]):
+            targetItem=i
+    if(targetItem>1):
+        a.setSpeed(0.5*PI,150,0)
+        while(a.botCurGlobalPos[0] >= zone1PositionX[targetItem]):
+    else:
+        a.setSpeed(-0.5*PI,150,0)
+        while(a.botCurGlobalPos[0] <= zone1PositionX[targetItem]):
+    a.preCatch(1)
+    a.putToStorage(1)
+    order=2
+    formerItem=targetItem
+    for i in range(0,2):
+        if(a.firstLevelOrder[j]==firstLayerColor[i]):
+            targetItem=i
+    if(targetItem>formerItem0):
+        a.setSpeed(0.5*PI,150,0)
+        while(a.botCurGlobalPos[0] >= zone1PositionX[targetItem]):
+    else:
+        a.setSpeed(-0.5*PI,150,0)
+        while(a.botCurGlobalPos[0] <= zone1PositionX[targetItem]):
+    a.preCatch(1)
+    a.putToStorage(2)
+    order=0
+else:
+    a.setSpeed(0.5*PI,150,0)
+    while(a.botCurGlobalPos[0] >= zone1PositionX[2]):
+    a.preCatch(1)
+    a.putToStorage(2)
+    order=0
+
+
+    
+
 while(abs(a.botCurGlobalPos[1] - 3.26) >= 0.01):#go to the rotating corner
     pass
 while(abs(a.botCurGlobalPos[2] - 0.04) >= 0.01):#rotate towards the 2 zone
