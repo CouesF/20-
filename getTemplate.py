@@ -12,7 +12,6 @@ from std_msgs.msg import MultiArrayDimension
 from std_msgs.msg import MultiArrayLayout
 import qrtools
 pi = 3.141592653589793
-
 clickX = 0
 clickY = 0
 templateWidth = 90
@@ -190,16 +189,15 @@ def waitUntilMovedTo(_x,_y,_dir):
 
 
 baud = 115200
-def openGen():
-    genSerial = serial.Serial(
-        port=MKSGEN,\
-        baudrate=baud,\
-        bytesize=serial.EIGHTBITS,\
-        parity=serial.PARITY_NONE,\
-        stopbits=serial.STOPBITS_ONE,\
-        timeout=5)
-    print(genSerial.name)         # check which port was really used
-    pass
+genSerial = serial.Serial(
+    port=MKSGEN,\
+    baudrate=baud,\
+    bytesize=serial.EIGHTBITS,\
+    parity=serial.PARITY_NONE,\
+    stopbits=serial.STOPBITS_ONE,\
+    timeout=5)
+print(genSerial.name)         # check which port was really used
+pass
 def openDlc():
     dlcSerial = serial.Serial(
         port=MKSDLC,\
@@ -282,10 +280,19 @@ def detectAndDecodeQRCode():#TODO:important,not todo
 #test4Template()
 openAndSetCap()
 
-#openGen()
 #test1()
+time.sleep(1)
+setSpeed(0,100,0)
+time.sleep(1)
+setSpeed(0,200,0)
+time.sleep(1)
+setSpeed(0,150,0)
 
 
+for i in range(5,20):
+    setSpeed(0,i*10,0)
+    time.sleep(0.5)
+    
 
 
 

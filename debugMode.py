@@ -33,32 +33,51 @@ secondLevelOrder = [0,0,0]
 
 
 baud = 115200
-def openGen():
-    genSerial = serial.Serial(
-        port=MKSGEN,\
-        baudrate=baud,\
-        bytesize=serial.EIGHTBITS,\
-        parity=serial.PARITY_NONE,\
-        stopbits=serial.STOPBITS_ONE,\
-        timeout=5)
-    print(genSerial.name)         # check which port was really used
-    pass
-def openDlc():
-    dlcSerial = serial.Serial(
-        port=MKSDLC,\
-        baudrate=baud,\
-        bytesize=serial.EIGHTBITS,\
-        parity=serial.PARITY_NONE,\
-        stopbits=serial.STOPBITS_ONE,\
-        timeout=5)
-    print(dlcSerial.name)         # check which port was really used
-    pass
-
+genSerial = serial.Serial(
+    port=MKSGEN,\
+    baudrate=baud,\
+    bytesize=serial.EIGHTBITS,\
+    parity=serial.PARITY_NONE,\
+    stopbits=serial.STOPBITS_ONE,\
+    timeout=5)
+print(genSerial.name)         # check which port was really used
+pass
+dlcSerial = serial.Serial(
+    port=MKSDLC,\
+    baudrate=baud,\
+    bytesize=serial.EIGHTBITS,\
+    parity=serial.PARITY_NONE,\
+    stopbits=serial.STOPBITS_ONE,\
+    timeout=5)
+print(dlcSerial.name)         # check which port was really used
+pass
+def callback(rawPositionData):
+    #rospy.loginfo(rospy.get_caller_id() + "i heard %s", rawPositionData.data)
+    botCurGlobalPos[0] = rawPositionData.data[0]
+    botCurGlobalPos[1] = rawPositionData.data[1]
+    botCurGlobalPos[2] = rawPositionData.data[2]
+    #print(botCurGlobalPos)
 def setSpeed(__direction,__speed,__rotation):
     getSpeed(__direction,__speed,__rotation)
     mesg = str.encode('S A'+str(int(speed[0]))+' B'+str(int(speed[1]))+' C'+str(int(speed[2]))+' D'+str(int(speed[3]))+' @')
     genSerial.write(mesg)
     print(mesg)
+
+def getSpeed(direction, speedG, rotation):
+    """
+    docstring
+    """
+    direction = direction + (pi / 4.0)
+    speed[0] = -speedG * math.cos(direction)
+    speed[1] = -speedG * math.sin(direction)
+    speed[2] = speedG * math.cos(direction)
+    speed[3] = speedG * math.sin(direction)
+
+    speed[0] += rotation
+    speed[1] += rotation
+    speed[2] += rotation
+    speed[3] += rotation
+    pass
 
 def setMovement(_x,_y,_r):
     mesg = str.encode('P X'+str(int(_x))+' Y'+str(int(_y))+' R'+str(int(_r))+' @')
@@ -73,20 +92,21 @@ def setMovement(_x,_y,_r):
 
 #getTemplate()
 def moveTo(targetX,targetY,targetDir):#will sent one record of moving data
-    maxSpeed = 100
+    maxSpeed = 300
     returnValue = 0
     deltaX = targetX - botCurGlobalPos[0]
     deltaY = targetY - botCurGlobalPos[1]
     deltaRotation = targetDir - botCurGlobalPos[2]
-    
-    moveDir = math.atan2(deltaY,deltaX)
-    moveDir += pi / 4.0
-    
     dist = math.sqrt(math.pow(deltaX,2)+math.pow(deltaY,2))
-    if(dist > 1.2):
-        movingSpeed = maxSpeed * 0.9
+    print(deltaX,deltaY,dist)    
+    moveDir = math.atan2(deltaY,deltaX)
+    print(moveDir,botCurGlobalPos[2])
+    moveDir -=  botCurGlobalPos[2]
+    
+    if(dist > 0.2):
+        movingSpeed = maxSpeed
         returnValue += 1
-    elif(dist>0.15):
+    elif(dist>0.1):
         movingSpeed = maxSpeed * dist/1.2
         returnValue += 2
     elif(dist>0.08):
@@ -95,21 +115,28 @@ def moveTo(targetX,targetY,targetDir):#will sent one record of moving data
     else:
         movingSpeed = 0
 
-    if(abs(deltaRotation) > pi/2):
-        rotationSpeed = maxSpeed * 0.45
+    if(abs(deltaRotation) > pi/2.0):
+        rotationSpeed = 50
         returnValue +=10
-    elif(abs(deltaRotation) > pi/8):
-        rotationSpeed = maxSpeed * 0.3
+    elif(abs(deltaRotation) > pi/8.0):
+        rotationSpeed = 30
         returnValue +=20
-    elif(abs(deltaRotation) > pi/15):
-        rotationSpeed = maxSpeed * 0.1
+    elif(abs(deltaRotation) > pi/50.0):
+        rotationSpeed = 15
+        returnValue +=20
+
+    elif(abs(deltaRotation) > pi/70.0):
+        rotationSpeed = 5
         returnValue +=30
+
     else:
         rotationSpeed = 0
-    print(moveDir,movingSpeed,deltaRotation,'\n')
-    rotationSpeed *=np.sign(deltaRotation)
-    setSpeed(moveDir,movingSpeed,rotationSpeed)
 
+    rotationSpeed *=np.sign(deltaRotation)
+    print(moveDir,movingSpeed,rotationSpeed)
+    setSpeed(moveDir,movingSpeed,rotationSpeed)
+    #setSpeed(moveDir,movingSpeed,0)
+    sleepFor(1.5)
     return returnValue
 
     pass
@@ -151,12 +178,13 @@ def test1():
 
 def getAndSaveQrcode():
     _,imgggg =qrCodeCap.read()
-    cv2.imshow('qrcode',imgggg)
+    #cv2.imshow('qrcode',imgggg)
     cv2.imwrite("qrcode.png",imgggg)
     pass
 def decodeQRCode():
     qr = qrtools.QR()
     qr.decode("qrcode.png")
+    print('ss')
     print(qr.data)
     print(qr.data[0])
     
@@ -223,6 +251,10 @@ def lockMotors():
     mesg = str.encode('h@')
     genSerial.write(mesg)
     pass
+def unlockClaw():
+    mesg = str.encode('f@')
+    dlcSerial.write(mesg)
+    pass
 def sleepFor(_seconds):
     time.sleep(_seconds)
     pass
@@ -260,21 +292,52 @@ def click_event(event, x, y, flags, params):
                     (x,y), font, 1, 
                     (255, 255, 0), 2) 
         cv2.imshow('image', img)
-
+def waitForStart():
+    while(genSerial.readline()!='FUCK\n'):
+        pass
+    print('start')
+    pass
 def debugMode():
-    while(1):
-        mode = input("s-move to position;p-movement;\nl-lockMotors\nx-special;\nq-qrcodeCam;t-templateCam\n")
+    mode = 'a'
+    while(mode!='quit'):
+        mode = raw_input("w-waitForstart\ns-move to position;p-movement;\nl-lockMotors\nx-special;\nj-QRCamForColor\nq-qrcodeCam;t-templateCam\no-setSpeed,f-stop\nquit")
         if(mode == 's'):
-            gx,gy,gdir = input("enter global pose x,y,dir\n").split()
+            gx,gy,gdir = input('x,'),input('y,'),input('dir')
+            gx = float(gx) 
+            gy = float(gy)
+            gdir =float(gdir)
             gdir = gdir/180.0*pi
             waitUntilMovedTo(gx,gy,gdir)
             print("moved to!\n")
+        elif(mode =='w'):
+            print('waitForStart')
+            waitForStart()
+            pass
+        elif(mode =='f'):
+            print('stop')
+            unlockMotors()
+            pass
+ 
         elif(mode =='p'):
-            gx,gy,gdir = input("enter movement x,y,dir\n").split()
+            gx,gy,gdir = input('x,'),input('y,'),input('dir')
+            gx = float(gx) 
+            gy = float(gy)
+            gdir = float(gdir)
+
             gdir = gdir/180.0*pi
             setMovement(gx,gy,gdir)
+        elif(mode =='o'):
+            gx,gy,gdir = input('speed,'),input('rotation,'),input('dir')
+            gx = int(gx) 
+            gy = int(gy)
+            gdir = int(gdir)
+
+            gdir = gdir/180.0*pi
+            setSpeed(gdir,gx,gy)
+
         elif(mode =='x'):
-            detailMode,__state__ = input('a-claw;b-height;c-dir;d-camPos;e-reset').split()
+            detailMode,__state__ = raw_input('a-claw;b-height;c-dir;d-camPos;e-reset;f-unlockMotor;g-unlockClaw'),raw_input('state')
+            __state__ = int(__state__)
             if(detailMode == 'a'):
                 claw(__state__)
             elif(detailMode == 'b'):
@@ -285,27 +348,44 @@ def debugMode():
                 camPos(__state__)    
             elif(detailMode == 'e'):
                 resetDlc()
+            elif(detailMode == 'f'):
+                unlockMotors()
+            elif(detailMode == 'g'):
+                unlockClaw()
+
             else:
                 pass
+        elif(mode=='j'):
+            _,_img = qrCodeCap.read()
+            _,__img = templateCap.read()
+            cv2.imshow('qrCamColor',_img)
+            cv2.imshow('templateCamColor',__img)
+            while(cv2.waitKey(30) != ord('e')):
+                _,_img = qrCodeCap.read()
+                _,__img = templateCap.read()
+                cv2.imshow('templateCamColor',__img)
+                cv2.imshow('qrCamColor',_img)
+            pass
+            cv2.destroyAllWindows()
         elif(mode=='q'):
             _,_img = qrCodeCap.read()
-            cv2.imshow('image',_img)
-            cv2.setMouseCallback('image', click_event)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            getAndSaveQrcode()
+            decodeQRCode()
+            #cv2.imshow('image',_img)
+            #cv2.setMouseCallback('image', click_event)
+            #cv2.waitKey(0)
+            #cv2.destroyAllWindows()
         pass
 
 
 #########################################
 #test4Template()
-openAndSetCap()
+#openAndSetCap()
 
-openGen()
-openDlc()
+#openGen()
 #test1()
-
 openListener()
-
+time.sleep(2)
 debugMode()
 
 

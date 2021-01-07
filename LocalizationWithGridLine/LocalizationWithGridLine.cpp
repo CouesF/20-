@@ -132,18 +132,18 @@ void captureInitializaition(VideoCapture *capture)
         std::cout << "cam openning failed" << std::endl;
 	return ;
     }
-    std::string cmd1("v4l2-ctl -d ");
-    std::string cmd11(" -c exposure_auto=1");
-    std::string cmd12(" exposure_absolute=78");
-    std::string cmd13(" brightness=60");
-    std::string cmd14(" contrast=30");
-    system((cmd1 + localizationCam + cmd11).c_str());
-    system((cmd1 + localizationCam + cmd12).c_str());
-    system((cmd1 + localizationCam + cmd13).c_str());
-    system((cmd1 + localizationCam + cmd14).c_str());
-     std::cout<<"default exposure: "<<(*capture).get(CAP_PROP_EXPOSURE)<<std::endl;
-    std::cout<<"default contrast: "<<(*capture).get(CAP_PROP_CONTRAST)<<std::endl;
-    std::cout<<"default brightne: "<<(*capture).get(CAP_PROP_BRIGHTNESS)<<std::endl;
+    //std::string cmd1("v4l2-ctl -d ");
+    //std::string cmd11(" -c exposure_auto=1");
+    //std::string cmd12(" exposure_absolute=78");
+    //std::string cmd13(" brightness=0.2");
+    //std::string cmd14(" contrast=0.8");
+    //system((cmd1 + localizationCam + cmd11).c_str());
+    //system((cmd1 + localizationCam + cmd12).c_str());
+    //system((cmd1 + localizationCam + cmd13).c_str());
+    //system((cmd1 + localizationCam + cmd14).c_str());
+     //std::cout<<"default exposure: "<<(*capture).get(CAP_PROP_EXPOSURE)<<std::endl;
+    //std::cout<<"default contrast: "<<(*capture).get(CAP_PROP_CONTRAST)<<std::endl;
+    //std::cout<<"default brightne: "<<(*capture).get(CAP_PROP_BRIGHTNESS)<<std::endl;
     
 }
 int main(int argc, char **argv)
