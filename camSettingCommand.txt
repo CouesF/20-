@@ -1,0 +1,8 @@
+v4l2-ctl --get-ctrl=white_balance_temperature
+v4l2-ctl --get-ctrl=brightness
+v4l2-ctl --get-ctrl=contrast
+
+v4l2-ctl --set-ctrl=gain=00
+v4l2-ctl --set-ctrl=exposure_auto=1
+v4l2-ctl --set-ctrl=exposure_absolute=10
+v4l2-ctl --set-ctrl=brightness=-100   gl-127-128
