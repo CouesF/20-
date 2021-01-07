@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import debugMode as a
 import sys
-
+from subprocess import call,Popen
 PI = 3.1415926535
 
 # before start
@@ -15,35 +15,49 @@ a.genSerial.flush()
 
 a.waitForStart()
 a.camPos(1)
-a.sleepFor(0.2)
+Popen('./../../../home/coues/StartLoc.sh')
+print('hhhhhhhhhh\n\n\\n\n\n\gggggg\n\n\n\n')
+a.sleepFor(1)
 
 #TODO: open new process
 
 a.openListener()
 
 
+
+
+
+
 ##############################################################
 a.lockMotors()
 print("1\n")
-a.setSpeed(0.75*PI,201,0)
-while(abs(a.botCurGlobalPos[1] - 1.3) >= 0.01):#go to the 1 zone cam line
+a.setSpeed(0.75*PI,231,0)
+while(a.botCurGlobalPos[1] <  1.3):#go to the 1 zone cam line
     pass
 print("1\n")
 a.lockMotors()
-a.setSpeed(0.5*PI,201,0)
-while(abs(a.botCurGlobalPos[0] - 3.0) >= 0.01):#getQRcode
+a.sleepFor(1.5)
+a.setSpeed(0.5*PI,300,0)
+while(a.botCurGlobalPos[0] < 3):#getQRcode
     pass
 print("1\n")
 a.clawHeight(0)
-a.sleepFor(0.1)
+
+print('qrCode')
 a.getAndSaveQrcode()
-while(not a.decodeQRCode()):
+hasQRCode = a.decodeQRCode()
+while(not hasQRCode):
+    print('qrCode')
+    a.sleepFor(0.6)
     a.getAndSaveQrcode()
+    hasQRCode = a.decodeQRCode()
+    
+    
     pass
 print(a.firstLevelOrder,a.secondLevelOrder)
 
 a.clawDirection(0)
-while(abs(a.botCurGlobalPos[0] - 6.8) >= 0.01):#match the color
+while(a.botCurGlobalPos[0] < 6.8):#match the color
     pass
 a.unlockMotors()
 
@@ -141,7 +155,6 @@ while(abs(a.botCurGlobalPos[0] - 0) >= 0.01):
     pass
 while(abs(a.botCurGlobalPos[1] - 6) >= 0.01):
     pass
-while
 a.setSpeed()
 while(abs(x - tarX) > 0.01):
     pass
@@ -151,8 +164,6 @@ a.lockMotors()
 
 
 
-a.set
-setSpeed()
 
 
 

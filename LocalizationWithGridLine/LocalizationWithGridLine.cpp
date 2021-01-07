@@ -485,7 +485,7 @@ int main(int argc, char **argv)
 	
         volatile double robotPreciseX = preciseXGlobal + lenth * cos(robotGlobalDirection+tempTheta); 
 	volatile double robotPreciseY = preciseYGlobal + lenth * sin(robotGlobalDirection+tempTheta);
-
+/*
         //output final data
         std::cout<< "x  " << xGlobal <<"  y  "<<yGlobal<<std::endl;
         std::cout<< "xp  " << preciseXGlobal <<"  yp  "<<preciseYGlobal;
@@ -493,7 +493,7 @@ int main(int argc, char **argv)
         std::cout<< "  bot x " << robotPreciseX <<" bot y  "<<robotPreciseY;
         std::cout<<"  bot dir  " << robotGlobalDirection ;
         std::cout<<std::endl;
-
+*/
         //debug data of mapping
         circle(theMap,
 	           Point(robotPreciseX * 50 + 50,
@@ -516,7 +516,7 @@ int main(int argc, char **argv)
         positionDataToSend.data.push_back(robotPreciseY );
         positionDataToSend.data.push_back(robotGlobalDirection );
         PositionPublisher.publish(positionDataToSend);
-        ROS_INFO("I published something!");
+        //ROS_INFO("I published something!");
         //ros::spinOnce();// do not need it if have no callback
 
         imshow("gridLines",warpedImg);

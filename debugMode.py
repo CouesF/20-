@@ -184,7 +184,10 @@ def getAndSaveQrcode():
 def decodeQRCode():
     qr = qrtools.QR()
     qr.decode("qrcode.png")
-    print(qr.data)
+    print('a',qr.data)
+    if(qr.data == u'NULL'):
+        return False
+
     flag = True
     for i in range(0,3):
         if(int(qr.data[i])!=1 and int(qr.data[i])!=2 and int(qr.data[i])!=3):
@@ -311,7 +314,7 @@ def click_event(event, x, y, flags, params):
                     (255, 255, 0), 2) 
         cv2.imshow('image', img)
 def waitForStart():
-    while(genSerial.readline()!='FUCK\n'):
+    while(genSerial.readline()==''):
         pass
     print('start')
     pass
