@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#import cv2
+import cv2
 import serial
 import math
 import time
@@ -92,7 +92,7 @@ def setMovement(_x,_y,_r):
 
 #getTemplate()
 def moveTo(targetX,targetY,targetDir):#will sent one record of moving data
-    maxSpeed = 300
+    maxSpeed = 220
     returnValue = 0
     deltaX = targetX - botCurGlobalPos[0]
     deltaY = targetY - botCurGlobalPos[1]
@@ -103,8 +103,8 @@ def moveTo(targetX,targetY,targetDir):#will sent one record of moving data
     print(moveDir,botCurGlobalPos[2])
     moveDir -=  botCurGlobalPos[2]
     
-    if(dist > 0.2):
-        movingSpeed = maxSpeed
+    if(dist > 0.5):
+        movingSpeed = maxSpeed * 0.9
         returnValue += 1
     elif(dist>0.1):
         movingSpeed = maxSpeed * dist/1.2
@@ -136,7 +136,7 @@ def moveTo(targetX,targetY,targetDir):#will sent one record of moving data
     print(moveDir,movingSpeed,rotationSpeed)
     setSpeed(moveDir,movingSpeed,rotationSpeed)
     #setSpeed(moveDir,movingSpeed,0)
-    sleepFor(1.5)
+    sleepFor(0.6)
     return returnValue
 
     pass
@@ -236,7 +236,7 @@ def clawDirection(_state):
     pass
 def camPos(_state):
     #0-1
-    mesg = str.encode('dt'+str(_state)+'@')
+    mesg = str.encode('cn'+str(_state)+'@')
     dlcSerial.write(mesg)
     pass
 def resetDlc():
@@ -300,7 +300,13 @@ def waitForStart():
 def debugMode():
     mode = 'a'
     while(mode!='quit'):
-        mode = raw_input("w-waitForstart\ns-move to position;p-movement;\nl-lockMotors\nx-special;\nj-QRCamForColor\nq-qrcodeCam;t-templateCam\no-setSpeed,f-stop\nquit")
+        mode = raw_input("\
+                w-waitForstart\n\
+                s-move to position;p-movement;\n\
+                l-lockMotors,f-unlock\n\
+                x-special;\nj-QRCamForColor\
+                \nq-qrcodeCam;t-templateCam\n\
+                o-setSpeed\nquit")
         if(mode == 's'):
             gx,gy,gdir = input('x,'),input('y,'),input('dir')
             gx = float(gx) 
@@ -309,15 +315,15 @@ def debugMode():
             gdir = gdir/180.0*pi
             waitUntilMovedTo(gx,gy,gdir)
             print("moved to!\n")
+        elif(mode =='f'):
+            print('unlockMotors')
+            unlockMotors()
+            pass
+
         elif(mode =='w'):
             print('waitForStart')
             waitForStart()
             pass
-        elif(mode =='f'):
-            print('stop')
-            unlockMotors()
-            pass
- 
         elif(mode =='p'):
             gx,gy,gdir = input('x,'),input('y,'),input('dir')
             gx = float(gx) 
@@ -359,14 +365,15 @@ def debugMode():
             _,_img = qrCodeCap.read()
             _,__img = templateCap.read()
             cv2.imshow('qrCamColor',_img)
-            cv2.imshow('templateCamColor',__img)
-            while(cv2.waitKey(30) != ord('e')):
+            cv2.imshow('temColor',__img)
+            while(cv2.waitKey(39) != ord('e')):
                 _,_img = qrCodeCap.read()
                 _,__img = templateCap.read()
-                cv2.imshow('templateCamColor',__img)
                 cv2.imshow('qrCamColor',_img)
-            pass
+                cv2.imshow('temColor',__img)
+                pass
             cv2.destroyAllWindows()
+            pass
         elif(mode=='q'):
             _,_img = qrCodeCap.read()
             getAndSaveQrcode()
