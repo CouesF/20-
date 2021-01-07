@@ -3,6 +3,11 @@ v4l2-ctl --get-ctrl=brightness
 v4l2-ctl --get-ctrl=contrast
 
 v4l2-ctl --set-ctrl=gain=00
-v4l2-ctl --set-ctrl=exposure_auto=1
+v4l2-ctl --set-ctrl=exposure_auto=3 -d /dev/cam4GlobalLocalization
+v4l2-ctl --get-ctrl=exposure_auto -d /dev/cam4GlobalLocalization
 v4l2-ctl --set-ctrl=exposure_absolute=10
+
 v4l2-ctl --set-ctrl=brightness=-100   gl-127-128
+v4l2-ctl --set-ctrl=brightness=-100 -d /dev/cam4GlobalLocalization
+
+v4l2-ctl --get-ctrl=brightness -d /dev/cam4GlobalLocalization

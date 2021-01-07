@@ -2,7 +2,7 @@
 import cv2
 import serial
 import math
-import time
+import time 
 import cv2
 import numpy as np
 import rospy
@@ -27,7 +27,7 @@ templateCap = cv2.VideoCapture(templateCam)
 
 speed = [0, 0, 0, 0]# A B C D
 botCurGlobalPos = [0,0,0] #x,y,dir float
-firstLevelOrder = [0,0,0]
+firstLevelOrder = [0,0,0] #red__1 green__2  blue__3
 secondLevelOrder = [0,0,0]
 
 
@@ -184,16 +184,23 @@ def getAndSaveQrcode():
 def decodeQRCode():
     qr = qrtools.QR()
     qr.decode("qrcode.png")
-    print('ss')
     print(qr.data)
-    print(qr.data[0])
-    
+    flag = True
     for i in range(0,3):
+        if(int(qr.data[i])!=1 and int(qr.data[i])!=2 and int(qr.data[i])!=3):
+            flag = False
+            break
+        if(int(qr.data[i+4])!=1 and int(qr.data[i+4])!=2 and int(qr.data[i+4])!=3):
+            flag = False
+            break
         firstLevelOrder[i] = int(qr.data[i])
         secondLevelOrder[i] = int(qr.data[i+4])
         pass
-    print(firstLevelOrder,secondLevelOrder)
-    return qr.data
+    if(flag==False):
+        return False
+    else:
+        print(firstLevelOrder,secondLevelOrder)
+        return True
 def detectAndDecodeQRCode():#TODO:important,not todo
     '''
     requirement:open qrCodeCap
@@ -218,7 +225,16 @@ def openAndSetCap():
   
 def getTemplatePosition():
     pass
-
+def resetToStartStatus():
+    camPos(0)
+    sleepFor(0.06)
+    resetDlc()
+    sleepFor(2)
+    clawDirection(2)
+    sleepFor(1)
+    clawHeight(2)
+    lockMotors()
+    sleepFor(0.2)
 def claw(_state):
     #0-1-2
     mesg = str.encode('zm'+str(_state)+'@')
@@ -229,6 +245,8 @@ def clawHeight(_state):
     mesg = str.encode('ah'+str(_state)+'@')
     dlcSerial.write(mesg)
     pass
+def getCurentExecutionTime():
+    return time.time()
 def clawDirection(_state):
     #0-1-2-3
     mesg = str.encode('dt'+str(_state)+'@')
@@ -391,9 +409,15 @@ def debugMode():
 
 #openGen()
 #test1()
-openListener()
-time.sleep(2)
-debugMode()
+if __name__ == "__main__":
+    openListener()
+    time.sleep(2)
+    debugMode()
+    templateCap.release()
+    qrCodeCap.release()
+
+    pass
+
 
 
 
@@ -404,8 +428,6 @@ debugMode()
 #genSerial.close()
 #dlcSerial.close()
 
-templateCap.release()
-qrCodeCap.release()
 
 # while expression:
 #     pass
